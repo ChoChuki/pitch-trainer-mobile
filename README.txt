@@ -1,65 +1,45 @@
-Pitch Trainer Mobile v17 — Clearer two-note relative-pitch feedback
+Pitch Trainer Mobile v18 — First stanza (four two-line groups) of Die Forelle
 
-Changes since v16:
-- Keep the original answer method: hear a reference and target, tap the target key.
-- Mark the known reference key in blue. Tapping this key during an unanswered
-  question replays the reference without marking an answer incorrect.
-- Automatically show the reference octave; show the correct target octave
-  after answering if the correct key is offscreen.
-- After answering, replay reference -> target, show both notes on the staff,
-  and let the staff replay both notes again.
-- Feedback compares your signed semitone distance to the correct distance.
-- Shorten the six-language instruction text, including Traditional Chinese
-  "兩音" rather than the simultaneous-note term "雙音".
-- No new settings or upward-only mode; keep the original mixed question pool.
-- Retain the exact original 75-note Forelle event data and music playback.
-- Bump the PWA cache name to v17.
+This v18 REPLACES the previously withdrawn v18 46-note ZIPs.
 
-v16 background:
-- Added Mode selector: Single note (default, original behavior) or Two notes.
-- Two notes: show and play a reference pitch, then play a target pitch.
-  Tap the target pitch on the piano keyboard to answer.
-  The target is different from the reference, at most 12 semitones away,
-  and both notes stay inside the selected From/To pitch range.
-- Tap the staff during an unanswered Two notes question to hear both notes again.
-- After answering, show the reference -> target names and semitone distance.
-- Demo now briefly demonstrates Two notes (F4 -> A4), between the existing
-  single-note quiz and the unchanged 75-note Schubert Die Forelle performance.
-- All six user interface languages updated: en, de, ja, it, el, zh-TW.
-- The settings, staff and keyboard still fit on one phone screen.
-- The existing octave navigation and dynamic C4/C5 switching are unchanged.
-- Preserve original applied settings, pending form entries, test state and
-  scroll position after finishing or stopping Demo.
-- Reused exactly the same 75-note original-MIDI melody from v15.
-- Upgraded PWA service worker cache name to v17 to load revised assets.
+Exactly first stanza of Schubert's Die Forelle once:
+1. In einem Bächlein helle / Da schoß in froher Eil
+2. Die launische Forelle / Vorüber wie ein Pfeil
+3. Ich stand an dem Gestade / Und sah in süßer Ruh
+4. Des muntern Fischleins Bade / Im klaren Bächlein zu
 
-How to use:
-1. Choose Mode -> Two notes, click Apply.
-2. Click Play. Reference pitch is shown on the staff and outlined blue on keyboard.
-3. Listen to the second note. Tap its piano key as your answer.
-4. Tap the blue reference key to hear only that reference again without scoring.
-5. Tap the staff at any time during the question, including after answering,
-   to hear both notes again. Feedback shows signed semitone distances.
-6. Click Next for another question, or Stop Test to return to free play.
-7. In Single note mode, the original single-tone test works as before.
+The original score repeats the last TWO lines (Des muntern...Im klaren...).
+That repeated couplet is omitted by stopping after the first 'zu' in bar 22.
+- Original Mutopia MIDI melody, bars 6 pickup through bar 22, first 'zu'.
+- 59 note events, pitches/rhythms/timings match original exactly.
+- 100 BPM, 19.2 seconds of notes, 1 final beat of rest (~19.8 seconds).
+- No invented notes or accompaniment.
+- Original Demo audio engine, octave navigation, and UI left untouched.
 
-How to update:
-- Cloudflare Workers static upload: unzip v17_site.zip and deploy all nine
-  website files (index.html must be at the upload root) to your current Worker.
-  Keep the same Worker to preserve the public web address.
-- GitHub Pages: replace the five files in v17_update.zip at the site root.
-- v17.zip contains the complete site and the optional test scripts.
+Training modes and six interface languages remain exactly as in v17,
+including the improved relative-pitch reference feedback.
 
-Original melody source:
-https://github.com/SMUGSterling/FretFree/blob/main/scores/mutopia-502/original.mid
-MIDI Git blob SHA: c2127b69737868a82f7337d37835da142ba8f34c
+Only changed deployed website files:
+- demo-score.js (59 original MIDI notes; first stanza without repeat)
+- app.js (one explanatory comment only; functional code untouched)
+- service-worker.js (cache name v18)
+All other website assets are byte-for-byte the same as v17.
 
-Local verification:
+Cloudflare: unzip v18_site.zip and upload its NINE files to the EXISTING Worker.
+GitHub Pages: overwrite the three files in v18_update.zip.
+Full v18.zip also contains optional tests, README and MIDI reference data.
+
+Source: https://github.com/SMUGSterling/FretFree/blob/main/scores/mutopia-502/original.mid
+LilyPond lyric and melody sheet: https://github.com/MutopiaProject/MutopiaProject/tree/master/ftp/SchubertF/D550/forelle/forelle-lys
+MIDI source git blob: c2127b69737868a82f7337d37835da142ba8f34c
+
+Verification:
   node --check app.js
-  node --check i18n.js
+  node --check demo-score.js
   node tools/test_score.js
   node tools/test_translations.js
-  python tools/test_mobile_v17.py
+  python tools/test_mobile_v18.py
+  python tools/test_octave_visibility.py
+  python tools/test_feedback_layout.py
 
-Automated tests use mocked audio in headless Chromium; final listening on
-real phone and published Cloudflare website is not yet verified.
+Automated browsers use mock audio; real-device listening still needs checking.

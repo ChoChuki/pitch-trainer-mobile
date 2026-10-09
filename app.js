@@ -1552,7 +1552,7 @@ async function demoAnswer(selectedMidi) {
     answer(selectedMidi);
 }
 
-// Original-MIDI vocal melody: bar 6 pickup through bar 26 cadence.
+// Original-MIDI vocal melody: bar 6 pickup through bar 22 first stanza cadence (no repeat).
 // No generated accompaniment or speculative harmonies are played.
 const DEMO_TEMPO = 100;
 const DEMO_GAP_SECONDS = 0.025;

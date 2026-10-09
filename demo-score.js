@@ -1,10 +1,10 @@
 window.DEMO_SCORE_DATA = {
-  "source": "Mutopia Project #502: Schubert, Die Forelle D.550, original MIDI, vocal melody only, measures 6 pickup through 26",
+  "source": "Mutopia Project #502: Schubert, Die Forelle D.550, original MIDI vocal melody, first stanza's eight lines, once (bars 6 pickup through bar 22 first 'zu'; omit repeat of final two lines)",
   "sourceMidi": "https://github.com/SMUGSterling/FretFree/blob/main/scores/mutopia-502/original.mid",
   "sourceMidiGitBlobSha": "c2127b69737868a82f7337d37835da142ba8f34c",
   "ticksPerQuarter": 384,
   "quartersPerBar": 2,
-  "stopTick": 15552,
+  "stopTick": 12672,
   "events": [
     {
       "part": "melody",
@@ -476,134 +476,6 @@ window.DEMO_SCORE_DATA = {
       "offset": 0,
       "start": 11712,
       "end": 12288,
-      "midi": 73
-    },
-    {
-      "part": "melody",
-      "bar": 22,
-      "offset": 576,
-      "start": 12288,
-      "end": 12480,
-      "midi": 73
-    },
-    {
-      "part": "melody",
-      "bar": 23,
-      "offset": 0,
-      "start": 12480,
-      "end": 12576,
-      "midi": 72
-    },
-    {
-      "part": "melody",
-      "bar": 23,
-      "offset": 96,
-      "start": 12576,
-      "end": 12672,
-      "midi": 70
-    },
-    {
-      "part": "melody",
-      "bar": 23,
-      "offset": 192,
-      "start": 12672,
-      "end": 12864,
-      "midi": 70
-    },
-    {
-      "part": "melody",
-      "bar": 23,
-      "offset": 384,
-      "start": 12864,
-      "end": 12960,
-      "midi": 70
-    },
-    {
-      "part": "melody",
-      "bar": 23,
-      "offset": 480,
-      "start": 12960,
-      "end": 13056,
-      "midi": 73
-    },
-    {
-      "part": "melody",
-      "bar": 23,
-      "offset": 576,
-      "start": 13056,
-      "end": 13152,
-      "midi": 72
-    },
-    {
-      "part": "melody",
-      "bar": 23,
-      "offset": 672,
-      "start": 13152,
-      "end": 13248,
-      "midi": 75
-    },
-    {
-      "part": "melody",
-      "bar": 24,
-      "offset": 0,
-      "start": 13248,
-      "end": 13632,
-      "midi": 73
-    },
-    {
-      "part": "melody",
-      "bar": 24,
-      "offset": 384,
-      "start": 13632,
-      "end": 13824,
-      "midi": 68
-    },
-    {
-      "part": "melody",
-      "bar": 24,
-      "offset": 576,
-      "start": 13824,
-      "end": 14016,
-      "midi": 68
-    },
-    {
-      "part": "melody",
-      "bar": 25,
-      "offset": 0,
-      "start": 14016,
-      "end": 14304,
-      "midi": 68
-    },
-    {
-      "part": "melody",
-      "bar": 25,
-      "offset": 288,
-      "start": 14304,
-      "end": 14400,
-      "midi": 68
-    },
-    {
-      "part": "melody",
-      "bar": 25,
-      "offset": 384,
-      "start": 14400,
-      "end": 14592,
-      "midi": 75
-    },
-    {
-      "part": "melody",
-      "bar": 25,
-      "offset": 576,
-      "start": 14592,
-      "end": 14784,
-      "midi": 72
-    },
-    {
-      "part": "melody",
-      "bar": 26,
-      "offset": 0,
-      "start": 14784,
-      "end": 15168,
       "midi": 73
     }
   ]
