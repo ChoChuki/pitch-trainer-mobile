@@ -1,4 +1,4 @@
-const CACHE_NAME = "pitch-trainer-mobile-v16";
+const CACHE_NAME = "pitch-trainer-mobile-v17";
 const ASSETS = [
     "./", "./index.html", "./styles.css", "./app.js", "./i18n.js", "./demo-score.js",
     "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"

@@ -1,4 +1,4 @@
-const APP_VERSION = "16";
+const APP_VERSION = "17";
 const PLAY_DURATION = 1.4;
 const SUPPORTED_MIN_MIDI = 36;
 const SUPPORTED_MAX_MIDI = 95;
@@ -309,7 +309,7 @@ function setLanguage(language) {
         if (!testActive && activePointers.size > 0) {
             drawStaff([...new Set(activePointers.values())]);
         } else if (answered && currentMidi !== null) {
-            drawStaff(currentMidi);
+            drawAnsweredStaff();
         } else {
             drawQuestionStaff();
         }
@@ -801,7 +801,7 @@ function keyBounds(midi) {
 
 function resetKeyboardColors() {
     keyElements.forEach((element) => {
-        element.classList.remove("correct", "wrong", "active");
+        element.classList.remove("correct", "wrong", "active", "reference");
     });
 }
 
@@ -1037,8 +1037,43 @@ function drawQuestionStaff() {
     }
 }
 
+// The reference is public information: make it discoverable on the keyboard.
+function markReferenceKey() {
+    if (testActive && testMode === "interval" && currentReferenceMidi !== null) {
+        keyElements.get(currentReferenceMidi)?.classList.add("reference");
+    }
+}
+
+function jumpToReferenceOctave() {
+    if (currentReferenceMidi === null) return;
+    const group = octaveGroups().find(({ midi }, index, groups) =>
+        currentReferenceMidi >= midi &&
+        (index === groups.length - 1 || currentReferenceMidi < groups[index + 1].midi));
+    if (group) showOctave(group.midi, "instant");
+}
+
+function showCorrectKeyIfHidden() {
+    const key = keyElements.get(currentMidi);
+    if (!key) return;
+    const viewport = elements.keyboardScroller.getBoundingClientRect();
+    const rect = key.getBoundingClientRect();
+    if (rect.left < viewport.left + 2 || rect.right > viewport.right - 2) {
+        const group = octaveGroups().find(({ midi }, index, groups) =>
+            currentMidi >= midi && (index === groups.length - 1 || currentMidi < groups[index + 1].midi));
+        if (group) showOctave(group.midi, "instant");
+    }
+}
+
+function drawAnsweredStaff() {
+    if (testMode === "interval" && currentReferenceMidi !== null) {
+        drawStaff([currentReferenceMidi, currentMidi]);
+    } else {
+        drawStaff(currentMidi);
+    }
+}
+
 function updateStaffReplayAccess() {
-    const canReplay = testActive && !answered && testMode === "interval";
+    const canReplay = testActive && testMode === "interval";
     elements.staff.setAttribute("role", canReplay ? "button" : "img");
     elements.staff.setAttribute("tabindex", canReplay ? "0" : "-1");
     elements.staff.setAttribute("aria-label", canReplay ? t("replayInterval") : "Music staff");
@@ -1049,8 +1084,8 @@ function formatAnswerText() {
     const fifths = KEY_FIFTHS[keyName];
     if (testMode === "interval" && currentReferenceMidi !== null) {
         const difference = currentMidi - currentReferenceMidi;
-        const sign = difference > 0 ? "+" : "";
-        return `${spelledNoteName(currentReferenceMidi, fifths)} \u2192 ${spelledNoteName(currentMidi, fifths)} (${sign}${difference} ${t("semitones")})`;
+        const direction = t(difference > 0 ? "intervalUp" : "intervalDown", { count: Math.abs(difference) });
+        return `${spelledNoteName(currentReferenceMidi, fifths)} \u2192 ${spelledNoteName(currentMidi, fifths)} (${direction})`;
     }
     return `${solfegeName(currentMidi, fifths)}    ${spelledNoteName(currentMidi, fifths)}`;
 }
@@ -1065,7 +1100,7 @@ async function playQuestion() {
         return;
     }
     await ensureAudio();
-    if (serial !== questionSerial || !testActive || answered || target !== currentMidi) return;
+    if (serial !== questionSerial || !testActive || target !== currentMidi) return;
     player.cancelQueue(audioContext);
     const start = audioContext.currentTime + 0.05;
     player.queueWaveTable(audioContext, audioContext.destination, pianoPreset,
@@ -1122,6 +1157,8 @@ function newQuestion() {
         currentMidi = targets[Math.floor(Math.random() * targets.length)];
         setStatus("listenInterval", { note: spelledNoteName(currentReferenceMidi, KEY_FIFTHS[keyName]) });
         setAnswer("chooseInterval");
+        markReferenceKey();
+        jumpToReferenceOctave();
     } else {
         currentReferenceMidi = null;
         currentMidi = Math.floor(Math.random() * (maxMidi - minMidi + 1)) + minMidi;
@@ -1180,19 +1217,33 @@ function answer(selectedMidi) {
     const targetName = spelledNoteName(currentMidi, fifths);
 
     resetKeyboardColors();
+    markReferenceKey();
 
     if (correctAnswer) {
         keyElements.get(selectedMidi).classList.add("correct");
-        setStatus("correct", { note: targetName });
     } else {
         keyElements.get(selectedMidi).classList.add("wrong");
         keyElements.get(currentMidi).classList.add("correct");
-        setStatus("wrong", { note: targetName });
     }
 
-    setAnswer("raw", { text: formatAnswerText() });
-    drawStaff(currentMidi);
-    playTone(currentMidi);
+    if (testMode === "interval" && currentReferenceMidi !== null) {
+        const selectedDistance = selectedMidi - currentReferenceMidi;
+        const correctDistance = currentMidi - currentReferenceMidi;
+        const distanceText = (value) => `${value > 0 ? "+" : ""}${value}`;
+        setStatus(correctAnswer ? "correctInterval" : "wrongInterval", {
+            selected: distanceText(selectedDistance),
+            correct: distanceText(correctDistance)
+        });
+        setAnswer("raw", { text: formatAnswerText() });
+        drawAnsweredStaff();
+        showCorrectKeyIfHidden();
+        playQuestion();
+    } else {
+        setStatus(correctAnswer ? "correct" : "wrong", { note: targetName });
+        setAnswer("raw", { text: formatAnswerText() });
+        drawStaff(currentMidi);
+        playTone(currentMidi);
+    }
 }
 
 function pressKey(midi, pointerId) {
@@ -1201,7 +1252,12 @@ function pressKey(midi, pointerId) {
     }
 
     if (testActive && currentMidi !== null && !answered) {
-        answer(midi);
+        if (testMode === "interval" && midi === currentReferenceMidi) {
+            // A marked reference key is a replay control, not a valid answer.
+            playTone(currentReferenceMidi);
+        } else {
+            answer(midi);
+        }
         return;
     }
 
@@ -1323,10 +1379,10 @@ elements.playButton.addEventListener("click", unlessDemo(() => {
 }));
 elements.nextButton.addEventListener("click", unlessDemo(newQuestion));
 elements.staff.addEventListener("click", unlessDemo(() => {
-    if (testActive && !answered && testMode === "interval") playQuestion();
+    if (testActive && testMode === "interval") playQuestion();
 }));
 elements.staff.addEventListener("keydown", unlessDemo((event) => {
-    if (testActive && !answered && testMode === "interval" && (event.key === "Enter" || event.key === " ")) {
+    if (testActive && testMode === "interval" && (event.key === "Enter" || event.key === " ")) {
         event.preventDefault();
         playQuestion();
     }
@@ -1480,6 +1536,8 @@ function startDemoQuestion(midi, referenceMidi = null) {
     if (testMode === "interval") {
         setStatus("listenInterval", { note: spelledNoteName(referenceMidi, KEY_FIFTHS[keyName]) });
         setAnswer("chooseInterval");
+        markReferenceKey();
+        jumpToReferenceOctave();
     } else {
         setStatus("listen");
         setAnswer("choose");
@@ -1642,7 +1700,7 @@ function captureDemoSnapshot() {
         answer: { ...answerMessage },
         keyClasses: [...keyElements.entries()].map(([midi, element]) => ({
             midi,
-            state: ["correct", "wrong"].filter((name) => element.classList.contains(name))
+            state: ["correct", "wrong", "reference"].filter((name) => element.classList.contains(name))
         })),
         keyboardScrollLeft: elements.keyboardScroller.scrollLeft,
         pageScrollY: window.scrollY
@@ -1677,7 +1735,7 @@ function restoreDemoSnapshot(snapshot) {
         if (key) classNames.forEach((name) => key.classList.add(name));
     });
     if (testActive && currentMidi !== null && answered) {
-        drawStaff(currentMidi);
+        drawAnsweredStaff();
     } else {
         drawQuestionStaff();
     }
@@ -1756,7 +1814,7 @@ async function runDemo() {
         if (demoCancelled) return;
         await demoAnswer(midiFromName("A4"));
         if (demoCancelled) return;
-        await sleep(500);
+        await sleep(1950); // Let the two-note feedback replay complete.
         if (demoCancelled) return;
         await pointToElement(elements.playButton);
         if (demoCancelled) return;
