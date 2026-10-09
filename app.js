@@ -1,4 +1,4 @@
-const APP_VERSION = "14";
+const APP_VERSION = "15";
 const PLAY_DURATION = 1.4;
 const SUPPORTED_MIN_MIDI = 36;
 const SUPPORTED_MAX_MIDI = 95;
@@ -1399,7 +1399,7 @@ async function demoAnswer(selectedMidi) {
     answer(selectedMidi);
 }
 
-// Original-MIDI vocal melody excerpt: bar 6 pickup through bar 14 cadence.
+// Original-MIDI vocal melody: bar 6 pickup through bar 26 cadence.
 // No generated accompaniment or speculative harmonies are played.
 const DEMO_TEMPO = 100;
 const DEMO_GAP_SECONDS = 0.025;

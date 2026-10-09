@@ -1,26 +1,36 @@
-Pitch Trainer Mobile v14
+Pitch Trainer Mobile v15
 
-Only changes since v13:
-- Demo ends on the authentic bar-14 Ab4 cadence, rather than beginning the next
-  incomplete musical/lyrical sentence (bars 15-18).
-- The last note is the original-MIDI Ab4 quarter note, and the rest of bar 14 is
-  silent (one quarter). The pickup Ab4 into bar 15 is intentionally omitted.
-- 29 exact MIDI melody events instead of 46, lasting about 10 seconds at 100 BPM.
-- No new notes, accompaniment, tempo changes, or layout changes.
-- Service worker version incremented to force the new demo-score into cache.
+Change since v14:
+- Extend Die Forelle vocal melody (without accompaniment) from the pickup
+  in original measure 6 through the completion of measure 26.
+- The complete 75-note excerpt is transcribed directly from the original MIDI,
+  preserving every pitch, note-on time and note-off time.
+- The last note is Db5 in measure 26; it sounds for one quarter note, followed
+  by one quarter-note rest. The next pickup into measure 27 is not played.
+- Approximately 24.3 seconds of music at the unchanged 100 BPM.
+- The existing v14 phone UI, tests, languages, octave following, piano sample,
+  and Demo state restoration are unchanged.
+- Version number and service worker cache bumped to v15 so the new score is loaded.
 
-Deploy (update only):
-Upload app.js, demo-score.js and service-worker.js to the existing GitHub
-Pages repository root, replacing same-named files. Other files stay unchanged.
+Update an existing GitHub Pages / Cloudflare Workers static site:
+Upload app.js, demo-score.js, and service-worker.js to the site root,
+replacing the same-named files. If hosting with Cloudflare Workers static
+asset upload, re-deploy the entire site from this ZIP instead.
 
-Independent MIDI source:
+MIDI source, as published by Mutopia (mirror):
 https://github.com/SMUGSterling/FretFree/blob/main/scores/mutopia-502/original.mid
-The local tools/original_midi_excerpt.json stores exact pitch/onset/offset
-triples for the 29 notes.
+MIDI Git blob SHA: c2127b69737868a82f7337d37835da142ba8f34c
 
-Checks:
-node --check app.js
-node --check demo-score.js
-node tools/test_score.js
-python tools/verify_against_midi.py /path/to/original.mid
-(The last check needs an original MIDI file; it is not required at runtime.)
+Verification data: tools/original_midi_excerpt.json contains all 75 original
+pitch/onset/offset triples; tools/test_score.js checks the deployed score data.
+For an independent binary MIDI comparison, obtain the original MIDI and run:
+  python tools/verify_against_midi.py path/to/original.mid
+This requires the third-party mido Python package.
+
+Local checks:
+  node --check app.js
+  node --check demo-score.js
+  node tools/test_score.js
+  node tools/test_translations.js
+  python tools/test_mobile_v15.py
+  python tools/test_octave_visibility.py
