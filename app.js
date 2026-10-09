@@ -1,4 +1,4 @@
-const APP_VERSION = "13";
+const APP_VERSION = "14";
 const PLAY_DURATION = 1.4;
 const SUPPORTED_MIN_MIDI = 36;
 const SUPPORTED_MAX_MIDI = 95;
@@ -1399,7 +1399,7 @@ async function demoAnswer(selectedMidi) {
     answer(selectedMidi);
 }
 
-// Exact vocal track from the Mutopia Project #502 MIDI, bars 6-26.
+// Original-MIDI vocal melody excerpt: bar 6 pickup through bar 14 cadence.
 // No generated accompaniment or speculative harmonies are played.
 const DEMO_TEMPO = 100;
 const DEMO_GAP_SECONDS = 0.025;
