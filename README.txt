@@ -1,12 +1,14 @@
-Pitch Trainer Mobile v7 (Mozart demo refinement)
+Pitch Trainer Mobile v8
 
-Changes from v6:
-- 12-bar brisk demo (~18.5 s of music) instead of 64 slow bars.
-- More prominent melody, lighter two-hand accompaniment, resolved finale.
-- Existing octave buttons auto-switch at selected phrases, not every beat.
-- Demo notation, status, and keyboard viewport keep a fixed on-screen size.
-- Demo uses C3-B5 so all three octave ranges are complete.
-- Other features, languages, and audio dependencies remain unchanged.
+Demo changes:
+- Beethoven's Ode to Joy theme instead of the Mozart demonstration.
+- Familiar eight-bar melody in C major (transposed up one octave), about 15 s.
+- Light simultaneous piano accompaniment; one treble staff throughout.
+- No bass staff or screen-height expansion during demo.
+- During the musical segment, settings/hint are hidden to keep the keyboard visible.
+- Existing octave shortcuts automatically move the keyboard viewport.
+- Six languages, normal free play with true multipoint, and single-note tests unchanged.
+- Audio resources still load exactly as in v7; they are not uploaded/modified.
 
-Upload the 8 website files from this archive to your existing GitHub Pages
-repository, replacing existing files. README.txt is optional.
+On GitHub Pages replace app.js, styles.css, service-worker.js.
+Or deploy all eight website files in this archive. Cache name is bumped to v8.

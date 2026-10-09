@@ -132,7 +132,7 @@ select { width: 100%; min-height: 42px; border-radius: 10px; border: 1px solid #
 .app-shell.demo-running #staff {
     width: 100%;
     height: auto;
-    aspect-ratio: 800 / 363;
+    aspect-ratio: 800 / 214;
 }
 .app-shell.demo-running .octave-nav[hidden] {
     display: flex;
@@ -145,4 +145,17 @@ select { width: 100%; min-height: 42px; border-radius: 10px; border: 1px solid #
 .app-shell.demo-running .keyboard-scroller {
     height: 252px;
     width: 100%;
+}
+
+/* During the short musical finale, keep one staff and the entire keyboard
+   visible on a phone. Settings are restored as soon as the demo finishes. */
+.app-shell.demo-running.demo-music .settings-card,
+.app-shell.demo-running.demo-music .hint {
+    display: none;
+}
+.app-shell.demo-running.demo-music {
+    padding-top: max(8px, env(safe-area-inset-top));
+}
+.app-shell.demo-running.demo-music #staff {
+    aspect-ratio: 800 / 214;
 }

@@ -557,7 +557,9 @@ function keySignatureLabel(name) {
 
 function drawStaff(midi = null) {
     const midis = midi === null ? [] : (Array.isArray(midi) ? [...new Set(midi)].sort((a, b) => a - b) : [midi]);
-    const clefs = selectStaffClefs(midis);
+    // The recorded demo is intentionally a single-staff treble arrangement.
+    // Normal free play still uses its selected clef(s) without restrictions.
+    const clefs = demoRunning ? ["Treble"] : selectStaffClefs(midis);
     const fifths = KEY_FIFTHS[keyName];
     const mixed = clefs.length === 2;
     const gap = mixed ? 160 : 0;
@@ -587,10 +589,9 @@ function drawStaff(midi = null) {
 
     const top = Math.min(...allPositions, 45) - 35;
     const bottom = Math.max(...allPositions, 130) + 58;
-    // Keep the entire demo layout stationary as notes move between clefs.
-    // The full two-staff area is reserved throughout the demonstration.
+    // The demo keeps one fixed-height treble staff even for simultaneous notes.
     elements.staff.setAttribute("viewBox", demoRunning
-        ? "0 -4 800 363"
+        ? "0 -8 800 214"
         : `0 ${top} 800 ${bottom - top}`);
     elements.staff.replaceChildren();
 
@@ -691,7 +692,7 @@ function drawStaff(midi = null) {
     }
 
     const names = midis.map((pitch) => spelledNoteName(pitch, fifths)).join("  ");
-    addSvgText(400, bottom - 12, names, 13, 800);
+    addSvgText(400, demoRunning ? 191 : bottom - 12, names, 13, 800);
 }
 
 function drawKeySignatureAt(clef, fifths, bottomY) {
@@ -1336,48 +1337,37 @@ async function demoAnswer(selectedMidi) {
     answer(selectedMidi);
 }
 
-// A brisk, short excerpt inspired by Mozart's "Non più andrai" theme.
-// This is a short demonstration arrangement, not the full operatic score.
-// Sound, keyboard highlights and notation all follow the same score events.
+// An eight-bar C-major piano demonstration of Beethoven's Ode to Joy theme.
+// The melody follows the familiar tune, transposed up an octave so melody
+// and supporting two-handed chords fit on a single treble staff.
 const DEMO_BARS = [
-    // Recognizable opening march phrase: fast and direct, without repeats.
-    "G4:1.5 G4:.5 E4:1 G4:1",
-    "G4:1.5 G4:.5 E4:1 G4:1",
-    "G4:.5 F4:.5 E4:.5 F4:.5 D4:2",
-    "D4:1 F4:1 D4:1 F4:1",
-    "D4:1 F4:1 F4:.5 E4:.5 D4:.5 E4:.5",
-    "C4:2 C4:1 E4:1",
-    "G4:1 E4:1 G4:1 C5:1",
-    "G4:1 C5:1 E5:1 C5:1",
-
-    // Brief answering phrase, then a resolved tonic chord.
-    "G4:1.5 G4:.5 E4:1 G4:1",
-    "A4:1 G4:1 F4:1 E4:1",
-    "D4:1 G4:1 B4:1 D5:1",
-    "C5:4"
+    "E5:1 E5:1 F5:1 G5:1",
+    "G5:1 F5:1 E5:1 D5:1",
+    "C5:1 C5:1 D5:1 E5:1",
+    "E5:1 D5:1 D5:2",
+    "E5:1 E5:1 F5:1 G5:1",
+    "G5:1 F5:1 E5:1 D5:1",
+    "C5:1 C5:1 D5:1 E5:1",
+    "D5:1 C5:1 C5:2"
 ];
 
 const DEMO_CHORDS = {
-    C: ["C3", "G3", "C4", "E4"],
-    G7: ["G3", "D4", "F4", "B4"],
-    F: ["F3", "C4", "F4", "A4"],
-    Dm: ["D3", "A3", "D4", "F4"],
-    Am: ["A3", "E4", "A4", "C5"],
-    Em: ["E3", "B3", "E4", "G4"]
+    C: ["C4", "E4", "G4"],
+    G: ["G4", "B4", "D5"],
+    F: ["F4", "A4", "C5"],
+    Am: ["A4", "C5", "E5"]
 };
 
 const DEMO_HARMONIES = [
-    "C", "C", "G7", "G7", "G7", "C", "C", "C",
-    "C", "F", "G7", "C"
+    "C", "G", "C", "G", "C", "G", "F", "C"
 ];
 
 function buildDemoScore() {
     if (DEMO_BARS.length !== DEMO_HARMONIES.length) {
-        throw new Error("Demo melody and accompaniment bar counts differ.");
+        throw new Error("Demo melody and accompaniment counts differ.");
     }
 
     const events = [];
-
     const add = (name, start, beats, volume, part) => {
         events.push({
             midi: midiFromName(name),
@@ -1390,42 +1380,35 @@ function buildDemoScore() {
     };
 
     DEMO_BARS.forEach((bar, index) => {
-        let position = 0;
-        const barStart = index * 4;
-
+        let beatPosition = 0;
+        const start = index * 4;
         bar.split(" ").forEach((token) => {
-            const [name, durationText] = token.split(":");
-            const beats = Number(durationText);
-            if (name !== "-") {
-                add(name, barStart + position, beats * 0.89, 0.74, "melody");
-            }
-            position += beats;
+            const [name, length] = token.split(":");
+            const beats = Number(length);
+            add(name, start + beatPosition, beats * 0.91, 0.82, "melody");
+            beatPosition += beats;
         });
 
-        if (Math.abs(position - 4) > 0.0001) {
-            throw new Error(`Demo bar ${index + 1} has ${position} beats, expected 4.`);
+        if (Math.abs(beatPosition - 4) > 0.00001) {
+            throw new Error(`Demo bar ${index + 1} is not four beats.`);
         }
 
-        const notes = DEMO_CHORDS[DEMO_HARMONIES[index]];
-        if (!notes) {
-            throw new Error(`Unknown chord at bar ${index + 1}.`);
-        }
+        const chord = DEMO_CHORDS[DEMO_HARMONIES[index]];
+        if (!chord) throw new Error(`Missing harmony in bar ${index + 1}.`);
 
         if (index === DEMO_BARS.length - 1) {
-            // A genuine sustained final tonic chord, including both hands.
-            notes.forEach((note, voice) => {
-                add(note, barStart, 3.65, voice === 0 ? 0.25 : 0.16, "harmony");
+            // Wait until the last C5 melody note for a real final tonic cadence.
+            chord.forEach((note, voice) => {
+                add(note, start + 2, 1.85, voice === 0 ? 0.24 : 0.14, "harmony");
             });
         } else {
-            // LH oom-pah pattern; multiple notes actually overlap at beats 1 and 3.
-            add(notes[0], barStart, 0.67, 0.20, "bass");
-            add(notes[1], barStart, 0.60, 0.10, "bass");
-            add(notes[2], barStart + 1, 0.60, 0.14, "harmony");
-            add(notes[3], barStart + 1, 0.60, 0.10, "harmony");
-            add(notes[0], barStart + 2, 0.67, 0.18, "bass");
-            add(notes[1], barStart + 2, 0.60, 0.10, "bass");
-            add(notes[2], barStart + 3, 0.60, 0.13, "harmony");
-            add(notes[3], barStart + 3, 0.60, 0.09, "harmony");
+            // Short, light accompaniment: lower chord tone with soft two-note answers.
+            add(chord[0], start, 0.85, 0.22, "bass");
+            add(chord[1], start + 1, 0.55, 0.12, "harmony");
+            add(chord[2], start + 1, 0.55, 0.12, "harmony");
+            add(chord[0], start + 2, 0.75, 0.17, "bass");
+            add(chord[1], start + 3, 0.55, 0.10, "harmony");
+            add(chord[2], start + 3, 0.55, 0.10, "harmony");
         }
     });
 
@@ -1435,11 +1418,9 @@ function buildDemoScore() {
 
 const DEMO_SCORE = buildDemoScore();
 
-// Only the existing octave shortcuts move the view. Switching happens at
-// preselected musical phrases rather than on every beat, avoiding a jittery UI.
+// Existing octave buttons control only horizontal scrolling, not timing.
 const DEMO_OCTAVE_CUES = [
-    [0, 60], [8, 48], [12, 60], [24, 72],
-    [28, 60], [36, 48], [40, 60], [44, 72]
+    [0, 72], [12, 60], [16, 72], [28, 60]
 ];
 
 function demoOctaveForBeat(beatIndex) {
@@ -1505,9 +1486,9 @@ function renderDemoChord(notes, beat) {
     const fifths = KEY_FIFTHS[keyName];
     const displayed = midis.map((midi) => spelledNoteName(midi, fifths)).join("  ");
     setStatus("raw", {
-        text: `Mozart · Non più andrai · ${Math.min(DEMO_BARS.length, Math.floor(beat / 4) + 1)}/${DEMO_BARS.length}`
+        text: `Beethoven · Ode to Joy · ${Math.min(DEMO_BARS.length, Math.floor(beat / 4) + 1)}/${DEMO_BARS.length}`
     });
-    setAnswer("raw", { text: displayed || "Non più andrai" });
+    setAnswer("raw", { text: displayed || "Ode to Joy" });
 }
 
 function buildDemoMusicPointers() {
@@ -1526,12 +1507,12 @@ function hideDemoMusicPointers() {
     });
 }
 
-async function playNonPiuAndraiDemo() {
+async function playOdeToJoyDemo() {
     await ensureAudio();
     player.cancelQueue(audioContext);
     buildDemoMusicPointers();
 
-    const secondsPerBeat = 60 / 156;
+    const secondsPerBeat = 60 / 132;
     const startTime = audioContext.currentTime + 0.22;
     const { events, totalBeats } = DEMO_SCORE;
     let next = 0;
@@ -1654,10 +1635,9 @@ async function runDemo() {
         await sleep(520);
 
         if (demoCancelled) return;
-        elements.startNote.value = String(midiFromName("C3"));
-        // Full C5 octave ensures identical left alignment at every jump.
+        elements.startNote.value = String(midiFromName("C4"));
         elements.endNote.value = String(midiFromName("B5"));
-        elements.clefSelect.value = "Auto";
+        elements.clefSelect.value = "Treble";
 
         await pointToElement(elements.applyButton);
         if (demoCancelled) return;
@@ -1666,11 +1646,12 @@ async function runDemo() {
 
         hideDemoPointer();
         setStatus("demoFree");
-        setAnswer("raw", { text: "Non più andrai · Piano" });
+        setAnswer("raw", { text: "Ode to Joy · Piano" });
         await sleep(380);
         if (demoCancelled) return;
 
-        await playNonPiuAndraiDemo();
+        document.querySelector(".app-shell").classList.add("demo-music");
+        await playOdeToJoyDemo();
     } finally {
         const wasCancelled = demoCancelled;
         hideDemoPointer();
@@ -1680,7 +1661,7 @@ async function runDemo() {
         demoSelectedOctave = null;
         demoRunning = false;
         demoCancelled = false;
-        document.querySelector(".app-shell").classList.remove("demo-running");
+        document.querySelector(".app-shell").classList.remove("demo-running", "demo-music");
         testActive = false;
         currentMidi = null;
         answered = false;
