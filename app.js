@@ -210,6 +210,10 @@ let answered = false;
 let testActive = false;
 let ready = false;
 let demoRunning = false;
+let demoCancelled = false;
+let keyboardMinX = 0;
+let demoSelectedOctave = null;
+let demoOctaveTapTimeout = null;
 let currentLanguage = "en";
 let statusMessage = { key: "loading", args: {} };
 let answerMessage = { key: "free", args: {} };
@@ -777,6 +781,34 @@ function resetKeyboardColors() {
     });
 }
 
+function octaveGroups() {
+    const groups = [];
+    const first = Math.floor(minMidi / 12) * 12;
+
+    for (let base = first; base <= maxMidi; base += 12) {
+        const firstNote = Math.max(base, minMidi);
+        if (firstNote > maxMidi) continue;
+        groups.push({
+            midi: firstNote,
+            label: noteName(firstNote)
+        });
+    }
+
+    return groups;
+}
+
+function showOctave(midi, behavior = "smooth") {
+    const bounds = keyBounds(midi);
+    const left = Math.max(0, bounds.left - keyboardMinX - 6);
+    elements.keyboardScroller.scrollTo({ left, behavior });
+}
+
+function highlightOctave(midi) {
+    document.querySelectorAll(".octave-jump").forEach((button) => {
+        button.classList.toggle("current", Number(button.dataset.midi) === midi);
+    });
+}
+
 function drawKeyboard() {
     elements.keyboard.replaceChildren();
     keyElements.clear();
@@ -792,7 +824,51 @@ function drawKeyboard() {
     const maxX = Math.max(...bounds.map((item) => item.right));
     const width = Math.max(maxX - minX, 100);
 
+    keyboardMinX = minX;
     elements.keyboard.style.width = `${width}px`;
+
+    const nav = document.getElementById("octaveNav");
+    nav.replaceChildren();
+    const groups = octaveGroups();
+    nav.hidden = groups.length <= 1;
+    nav.setAttribute("aria-label", t("octaveNavigation"));
+    const navButtons = [];
+
+    groups.forEach((group) => {
+        const button = document.createElement("button");
+        button.className = "octave-jump";
+        button.type = "button";
+        button.textContent = group.label;
+        button.dataset.midi = String(group.midi);
+        button.setAttribute("aria-label", t("jumpToOctave", { note: group.label }));
+        button.addEventListener("click", () => {
+            if (!demoRunning) showOctave(group.midi);
+        });
+        nav.appendChild(button);
+        navButtons.push({ button, midi: group.midi });
+
+        const marker = document.createElement("span");
+        marker.className = "octave-mark";
+        marker.textContent = group.label;
+        marker.style.left = `${Math.max(0, keyBounds(group.midi).left - minX)}px`;
+        elements.keyboard.appendChild(marker);
+    });
+
+    const markCurrentOctave = () => {
+        if (demoRunning && demoSelectedOctave !== null) {
+            highlightOctave(demoSelectedOctave);
+            return;
+        }
+        const offset = elements.keyboardScroller.scrollLeft;
+        let selected = 0;
+        for (let i = 0; i < navButtons.length; i += 1) {
+            const groupX = keyBounds(navButtons[i].midi).left - minX;
+            if (groupX <= offset + 14) selected = i;
+        }
+        navButtons.forEach(({ button }, i) => button.classList.toggle("current", i === selected));
+    };
+    elements.keyboardScroller.onscroll = markCurrentOctave;
+    markCurrentOctave();
 
     const ordered = [
         ...midis.filter((midi) => isWhiteKey(midi)),
@@ -1126,6 +1202,10 @@ document.getElementById("languageSelect").addEventListener("change", (event) => 
 document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
         releaseAllKeys();
+        if (demoRunning) {
+            demoCancelled = true;
+            player.cancelQueue(audioContext);
+        }
     }
 });
 window.addEventListener("blur", releaseAllKeys);
@@ -1176,7 +1256,14 @@ function sleep(ms) {
 
 function createDemoInterface() {
     const button = document.getElementById("demoButton");
-    button.addEventListener("click", runDemo);
+    button.addEventListener("click", () => {
+        if (demoRunning) {
+            demoCancelled = true;
+            player.cancelQueue(audioContext);
+        } else {
+            runDemo();
+        }
+    });
     const pointer = document.createElement("div");
     pointer.id = "demoPointer";
     document.body.appendChild(pointer);
@@ -1215,9 +1302,8 @@ function setDemoControlsLocked(locked) {
 
     const demoButton = document.getElementById("demoButton");
 
-    if (!locked && ready) {
-        demoButton.disabled = false;
-    }
+    demoButton.disabled = !ready;
+    demoButton.textContent = locked ? t("stopDemo") : t("demo");
 }
 
 function startDemoQuestion(midi) {
@@ -1240,157 +1326,344 @@ async function demoAnswer(selectedMidi) {
     answer(selectedMidi);
 }
 
-function demoRenderFreePlayNote(midi) {
+// A complete, self-contained piano demonstration arrangement of Mozart's
+// "Non più andrai" theme. This is not a transcription of the full opera aria.
+// Every voice uses the same score events for sound, keyboard and notation.
+const DEMO_BARS = [
+    // A: principal march theme
+    "G4:1.5 G4:.5 E4:1 G4:1",
+    "G4:1.5 G4:.5 E4:1 G4:1",
+    "G4:.5 F4:.5 E4:.5 F4:.5 D4:2",
+    "D4:1 F4:1 D4:1 F4:1",
+    "D4:1 F4:1 F4:.5 E4:.5 D4:.5 E4:.5",
+    "C4:2 C4:1 E4:1",
+    "G4:1 E4:1 G4:1 C5:1",
+    "G4:1 C5:1 E5:1 C5:1",
+
+    // A': answer and cadence
+    "G4:1.5 G4:.5 E4:1 G4:1",
+    "A4:1 G4:1 F4:1 E4:1",
+    "D4:1 G4:1 B4:1 D5:1",
+    "D5:.5 C5:.5 B4:.5 A4:.5 G4:2",
+    "G4:1 C5:1 E5:1 D5:1",
+    "C5:.5 B4:.5 A4:.5 G4:.5 F4:1 E4:1",
+    "D4:1 F4:1 B4:1 D5:1",
+    "C5:2 G4:1 E4:1",
+
+    // B: contrasting harmonic answer
+    "A4:1 A4:.5 B4:.5 C5:1 A4:1",
+    "G4:1 E4:1 F4:1 A4:1",
+    "B4:.5 A4:.5 G4:.5 F4:.5 E4:1 G4:1",
+    "F4:1 E4:1 D4:2",
+    "E4:1 G4:1 C5:1 B4:1",
+    "A4:.5 B4:.5 C5:1 D5:1 C5:1",
+    "B4:1 G4:1 F4:1 D4:1",
+    "E4:2 G4:1 C5:1",
+
+    // B': ascending answer and close
+    "C5:.5 B4:.5 A4:.5 G4:.5 A4:1 C5:1",
+    "D5:1 C5:1 B4:1 G4:1",
+    "A4:.5 G4:.5 F4:.5 E4:.5 D4:1 F4:1",
+    "G4:2 D5:1 B4:1",
+    "C5:1 E5:1 D5:1 C5:1",
+    "B4:.5 A4:.5 G4:1 E4:1 G4:1",
+    "F4:1 D4:1 B4:1 G4:1",
+    "C5:2 G4:1 E4:1",
+
+    // A reprise: principal theme in the upper voice
+    "G4:1.5 G4:.5 E4:1 G4:1",
+    "G4:1.5 G4:.5 E4:1 C5:1",
+    "B4:.5 A4:.5 G4:.5 A4:.5 F4:2",
+    "F4:1 A4:1 F4:1 A4:1",
+    "G4:1 C5:1 C5:.5 B4:.5 A4:.5 G4:.5",
+    "E4:2 E4:1 G4:1",
+    "C5:1 G4:1 C5:1 E5:1",
+    "D5:1 C5:1 B4:1 G4:1",
+
+    // C: lighter variation
+    "E5:.5 D5:.5 C5:.5 B4:.5 A4:1 G4:1",
+    "F4:1 A4:1 C5:1 A4:1",
+    "D5:1 B4:1 G4:1 F4:1",
+    "E4:2 G4:1 C5:1",
+    "A4:1 C5:1 B4:1 A4:1",
+    "G4:.5 A4:.5 B4:.5 C5:.5 D5:1 B4:1",
+    "C5:1 A4:1 F4:1 D4:1",
+    "G4:2 B4:1 D5:1",
+
+    // A final reprise: build toward the coda
+    "G4:1.5 G4:.5 E4:1 G4:1",
+    "G4:1.5 G4:.5 E4:1 G4:1",
+    "G4:.5 F4:.5 E4:.5 F4:.5 D4:2",
+    "D4:1 F4:1 A4:1 C5:1",
+    "C5:1 E5:1 D5:1 C5:1",
+    "B4:.5 C5:.5 D5:1 B4:1 G4:1",
+    "A4:1 G4:1 F4:1 D4:1",
+    "E4:2 G4:1 C5:1",
+
+    // Full closing cadence (no abrupt cutoff)
+    "C5:1 E5:1 G4:1 C5:1",
+    "A4:.5 B4:.5 C5:1 A4:1 F4:1",
+    "D5:1 B4:1 G4:1 D5:1",
+    "C5:1 G4:1 E4:1 C4:1",
+    "F4:1 A4:1 C5:1 A4:1",
+    "D5:1 B4:1 G4:1 F4:1",
+    "E4:1 G4:1 B4:1 D5:1",
+    "C5:4"
+];
+
+const DEMO_CHORDS = {
+    C: ["C3", "G3", "C4", "E4"],
+    G7: ["G3", "D4", "F4", "B4"],
+    F: ["F3", "C4", "F4", "A4"],
+    Dm: ["D3", "A3", "D4", "F4"],
+    Am: ["A3", "E4", "A4", "C5"],
+    Em: ["E3", "B3", "E4", "G4"]
+};
+
+const DEMO_HARMONIES = [
+    "C", "C", "G7", "G7", "G7", "C", "C", "C",
+    "C", "F", "G7", "G7", "C", "F", "G7", "C",
+    "Am", "F", "G7", "Dm", "C", "Am", "G7", "C",
+    "F", "G7", "Dm", "G7", "C", "Am", "G7", "C",
+    "C", "C", "F", "F", "C", "C", "G7", "G7",
+    "Am", "F", "G7", "C", "F", "G7", "Dm", "G7",
+    "C", "C", "G7", "Dm", "C", "G7", "F", "C",
+    "C", "F", "G7", "C", "F", "G7", "G7", "C"
+];
+
+function buildDemoScore() {
+    if (DEMO_BARS.length !== DEMO_HARMONIES.length) {
+        throw new Error("Demo melody and accompaniment bar counts differ.");
+    }
+
+    const events = [];
+
+    const add = (name, start, beats, volume, part) => {
+        events.push({
+            midi: midiFromName(name),
+            start,
+            end: start + beats,
+            beats,
+            volume,
+            part
+        });
+    };
+
+    DEMO_BARS.forEach((bar, index) => {
+        let position = 0;
+        const barStart = index * 4;
+
+        bar.split(" ").forEach((token) => {
+            const [name, durationText] = token.split(":");
+            const beats = Number(durationText);
+            if (name !== "-") {
+                add(name, barStart + position, beats * 0.90, 0.57, "melody");
+            }
+            position += beats;
+        });
+
+        if (Math.abs(position - 4) > 0.0001) {
+            throw new Error(`Demo bar ${index + 1} has ${position} beats, expected 4.`);
+        }
+
+        const notes = DEMO_CHORDS[DEMO_HARMONIES[index]];
+        if (!notes) {
+            throw new Error(`Unknown chord at bar ${index + 1}.`);
+        }
+
+        if (index === DEMO_BARS.length - 1) {
+            // A genuine sustained final tonic chord, including both hands.
+            notes.forEach((note, voice) => {
+                add(note, barStart, 3.65, voice === 0 ? 0.29 : 0.20, "harmony");
+            });
+        } else {
+            // LH oom-pah pattern; multiple notes actually overlap at beats 1 and 3.
+            add(notes[0], barStart, 0.75, 0.28, "bass");
+            add(notes[1], barStart, 0.64, 0.17, "bass");
+            add(notes[2], barStart + 1, 0.73, 0.22, "harmony");
+            add(notes[3], barStart + 1, 0.73, 0.17, "harmony");
+            add(notes[0], barStart + 2, 0.76, 0.25, "bass");
+            add(notes[1], barStart + 2, 0.65, 0.17, "bass");
+            add(notes[2], barStart + 3, 0.73, 0.20, "harmony");
+            add(notes[3], barStart + 3, 0.73, 0.15, "harmony");
+        }
+    });
+
+    events.sort((a, b) => a.start - b.start || a.midi - b.midi);
+    return { events, totalBeats: DEMO_BARS.length * 4 };
+}
+
+const DEMO_SCORE = buildDemoScore();
+
+// Demo uses exactly the same octave controls and key sizes as free play.
+// Beat-aligned switching highlights the bass on beats 1/3, accompaniment on
+// beats 2/4, and an upper melody whenever it reaches C5 or above.
+function demoOctaveForBeat(beatIndex) {
+    const attacks = DEMO_SCORE.events.filter((event) => {
+        return Math.abs(event.start - beatIndex) < 0.0001;
+    });
+
+    const highMelody = attacks.find((event) => {
+        return event.part === "melody" && event.midi >= 72;
+    });
+    const bass = attacks.find((event) => event.part === "bass");
+    const harmony = attacks.find((event) => event.part === "harmony");
+    const melody = attacks.find((event) => event.part === "melody");
+    const lead = highMelody || bass || harmony || melody;
+
+    return lead ? Math.floor(lead.midi / 12) * 12 : demoSelectedOctave;
+}
+
+function demoJumpOctave(midi) {
+    if (midi === null || midi === demoSelectedOctave) return;
+
+    const button = [...document.querySelectorAll(".octave-jump")].find((item) => {
+        return Number(item.dataset.midi) === midi;
+    });
+    if (!button) return;
+
+    demoSelectedOctave = midi;
+    showOctave(midi, "instant");
+    highlightOctave(midi);
+
+    // Visualize the existing quick-key selection without delaying playback.
+    const pointer = demoPointer();
+    const rect = button.getBoundingClientRect();
+    pointer.style.left = `${rect.left + rect.width / 2}px`;
+    pointer.style.top = `${rect.top + rect.height / 2}px`;
+    pointer.classList.add("visible", "tap");
+    window.clearTimeout(demoOctaveTapTimeout);
+    demoOctaveTapTimeout = window.setTimeout(() => {
+        pointer.classList.remove("visible", "tap");
+    }, 160);
+}
+
+function renderDemoChord(notes, beat) {
+    const midis = [...new Set(notes.map((event) => event.midi))].sort((a, b) => a - b);
     resetKeyboardColors();
+    midis.forEach((midi) => keyElements.get(midi)?.classList.add("active"));
+    drawStaff(midis);
 
-    const key = keyElements.get(midi);
-
-    if (key) {
-        key.classList.add("active");
-
-        const rect = key.getBoundingClientRect();
-        const pointer = demoPointer();
-
-        pointer.style.left = `${rect.left + rect.width / 2}px`;
-        pointer.style.top = `${rect.top + Math.min(rect.height * 0.72, 150)}px`;
+    const view = elements.keyboardScroller.getBoundingClientRect();
+    const visible = midis.map((midi) => {
+        return keyElements.get(midi)?.getBoundingClientRect();
+    }).filter((rect) => {
+        return rect && rect.right > view.left + 6 && rect.left < view.right - 6;
+    });
+    const pointers = [...document.querySelectorAll(".demo-music-pointer")];
+    for (let i = 0; i < pointers.length; i += 1) {
+        const pointer = pointers[i];
+        const rect = visible[i];
+        if (!rect) {
+            pointer.classList.remove("visible");
+            continue;
+        }
+        const left = Math.max(rect.left, view.left);
+        const right = Math.min(rect.right, view.right);
+        pointer.style.left = `${(left + right) / 2}px`;
+        pointer.style.top = `${rect.top + Math.min(rect.height * 0.7, 150)}px`;
         pointer.classList.add("visible");
     }
 
     const fifths = KEY_FIFTHS[keyName];
-    const note = spelledNoteName(midi, fifths);
-    const solfege = solfegeName(midi, fifths);
-
-    setStatus("raw", { text: `${t("solfege")}: ${solfege}    ${t("note")}: ${note}` });
-    setAnswer("raw", { text: `${solfege}    ${note}` });
-    drawStaff(midi);
+    const displayed = midis.map((midi) => spelledNoteName(midi, fifths)).join("  ");
+    setStatus("raw", {
+        text: `Mozart · Non più andrai · ${Math.min(DEMO_BARS.length, Math.floor(beat / 4) + 1)}/${DEMO_BARS.length}`
+    });
+    setAnswer("raw", { text: displayed || "Non più andrai" });
 }
 
-const NON_PIU_ANDRAI_MELODY = [
-    ["G4", 0.75], ["G4", 0.25],
+function buildDemoMusicPointers() {
+    if (document.querySelector(".demo-music-pointer")) return;
+    for (let i = 0; i < 5; i += 1) {
+        const pointer = document.createElement("div");
+        pointer.className = "demo-music-pointer";
+        pointer.style.setProperty("--pointer-index", String(i));
+        document.body.appendChild(pointer);
+    }
+}
 
-    ["E4", 1.00], ["G4", 0.75], ["G4", 0.25],
-    ["E4", 1.00], ["G4", 0.75], ["G4", 0.25],
-
-    ["G4", 0.25], ["F4", 0.25], ["E4", 0.25], ["F4", 0.25],
-    ["D4", 1.00], ["D4", 1.00], ["F4", 0.75], ["F4", 0.25],
-
-    ["D4", 1.00], ["F4", 0.75], ["F4", 0.25],
-    ["D4", 1.00], ["F4", 0.75], ["F4", 0.25],
-
-    ["F4", 0.25], ["E4", 0.25], ["D4", 0.25], ["E4", 0.25],
-    ["C4", 1.00], ["C4", 1.00], ["C4", 0.75], ["E4", 0.25],
-
-    ["G4", 1.00], ["E4", 0.75], ["G4", 0.25],
-    ["C5", 1.00], ["G4", 0.75], ["C5", 0.25],
-
-    ["E5", 1.00], ["C5", 0.75], ["C5", 0.25],
-    ["C5", 1.00], ["G4", 0.75], ["C5", 0.25]
-].map(([note, beats]) => ({
-    midi: midiFromName(note),
-    beats
-}));
-
-const NON_PIU_ANDRAI_HARMONY = [
-    { chord: ["C3", "E3", "G3"], bars: 1 },
-    { chord: ["G2", "B2", "D3", "F3"], bars: 2 },
-    { chord: ["C3", "E3", "G3"], bars: 3 }
-];
-
-function schedulePianoChord(notes, when, duration, volume) {
-    notes.forEach((note) => {
-        player.queueWaveTable(
-            audioContext,
-            audioContext.destination,
-            pianoPreset,
-            when,
-            midiFromName(note),
-            duration,
-            volume
-        );
+function hideDemoMusicPointers() {
+    document.querySelectorAll(".demo-music-pointer").forEach((pointer) => {
+        pointer.classList.remove("visible");
     });
 }
 
 async function playNonPiuAndraiDemo() {
     await ensureAudio();
     player.cancelQueue(audioContext);
+    buildDemoMusicPointers();
 
-    const tempo = 120;
-    const secondsPerBeat = 60 / tempo;
-    const startTime = audioContext.currentTime + 0.18;
+    const secondsPerBeat = 60 / 120;
+    const startTime = audioContext.currentTime + 0.22;
+    const { events, totalBeats } = DEMO_SCORE;
+    let next = 0;
+    let previousSignature = "";
+    let previousBar = -1;
+    let previousOctaveBeat = -1;
 
-    let beatCursor = 0;
+    await new Promise((resolve) => {
+        const timer = window.setInterval(() => {
+            if (demoCancelled || document.hidden) {
+                window.clearInterval(timer);
+                player.cancelQueue(audioContext);
+                resolve();
+                return;
+            }
 
-    NON_PIU_ANDRAI_MELODY.forEach((item) => {
-        const duration = item.beats * secondsPerBeat;
+            const now = audioContext.currentTime;
+            const beat = Math.max(0, (now - startTime) / secondsPerBeat);
+            const schedulingHorizon = now + 0.24;
 
-        player.queueWaveTable(
-            audioContext,
-            audioContext.destination,
-            pianoPreset,
-            startTime + beatCursor * secondsPerBeat,
-            item.midi,
-            Math.max(0.10, duration * 0.92),
-            0.78
-        );
+            while (
+                next < events.length &&
+                startTime + events[next].start * secondsPerBeat < schedulingHorizon
+            ) {
+                const event = events[next++];
+                const scheduledStart = startTime + event.start * secondsPerBeat;
+                player.queueWaveTable(
+                    audioContext,
+                    audioContext.destination,
+                    pianoPreset,
+                    scheduledStart,
+                    event.midi,
+                    event.beats * secondsPerBeat,
+                    event.volume
+                );
+            }
 
-        beatCursor += item.beats;
+            const current = events.filter((event) => {
+                return event.start <= beat && beat < event.end;
+            });
+            const octaveBeat = Math.floor(beat);
+            if (octaveBeat !== previousOctaveBeat && octaveBeat < totalBeats) {
+                demoJumpOctave(demoOctaveForBeat(octaveBeat));
+                previousOctaveBeat = octaveBeat;
+            }
+            const signature = current.map((event) => event.midi).sort((a, b) => a - b).join(",");
+            const bar = Math.floor(beat / 4);
+            if (signature !== previousSignature || bar !== previousBar) {
+                renderDemoChord(current, beat);
+                previousSignature = signature;
+                previousBar = bar;
+            }
+
+            if (beat >= totalBeats + 0.65) {
+                window.clearInterval(timer);
+                resolve();
+            }
+        }, 30);
     });
 
-    for (let bar = 0; bar < 6; bar += 1) {
-        let chord;
-
-        if (bar === 1 || bar === 2) {
-            chord = NON_PIU_ANDRAI_HARMONY[1].chord;
-        } else {
-            chord = NON_PIU_ANDRAI_HARMONY[0].chord;
-        }
-
-        const barStartBeat = 1 + bar * 4;
-
-        schedulePianoChord(
-            [chord[0]],
-            startTime + barStartBeat * secondsPerBeat,
-            0.34,
-            0.34
-        );
-
-        schedulePianoChord(
-            chord.slice(1),
-            startTime + (barStartBeat + 1) * secondsPerBeat,
-            0.30,
-            0.24
-        );
-
-        schedulePianoChord(
-            [chord[0]],
-            startTime + (barStartBeat + 2) * secondsPerBeat,
-            0.34,
-            0.31
-        );
-
-        schedulePianoChord(
-            chord.slice(1),
-            startTime + (barStartBeat + 3) * secondsPerBeat,
-            0.30,
-            0.22
-        );
-    }
-
-    await sleep(180);
-
-    for (const item of NON_PIU_ANDRAI_MELODY) {
-        demoRenderFreePlayNote(item.midi);
-        await sleep(item.beats * secondsPerBeat * 1000);
-    }
-
-    hideDemoPointer();
+    hideDemoMusicPointers();
     resetKeyboardColors();
 
-    setStatus("demoEnd");
-    setAnswer("title");
-    drawStaff();
-
-    await sleep(1600);
+    if (!demoCancelled) {
+        setStatus("demoEnd");
+        setAnswer("title");
+        drawStaff();
+        await sleep(1400);
+    }
 }
 
 async function runDemo() {
@@ -1399,6 +1672,7 @@ async function runDemo() {
     }
 
     demoRunning = true;
+    demoCancelled = false;
     setDemoControlsLocked(true);
 
     try {
@@ -1411,51 +1685,71 @@ async function runDemo() {
         elements.clefSelect.value = "Treble";
 
         await pointToElement(elements.applyButton);
+        if (demoCancelled) return;
         applySettings();
         await sleep(850);
 
+        if (demoCancelled) return;
         await pointToElement(elements.playButton);
+        if (demoCancelled) return;
         startDemoQuestion(midiFromName("F#4"));
         await sleep(1500);
 
+        if (demoCancelled) return;
         await demoAnswer(midiFromName("G4"));
         await sleep(1700);
 
+        if (demoCancelled) return;
         await pointToElement(elements.nextButton);
+        if (demoCancelled) return;
         startDemoQuestion(midiFromName("A4"));
         await sleep(1400);
 
+        if (demoCancelled) return;
         await demoAnswer(midiFromName("A4"));
         await sleep(1600);
 
+        if (demoCancelled) return;
         await pointToElement(elements.stopButton);
+        if (demoCancelled) return;
         stopTest();
         await sleep(900);
 
+        if (demoCancelled) return;
+        elements.startNote.value = String(midiFromName("C3"));
         elements.endNote.value = String(midiFromName("E5"));
+        elements.clefSelect.value = "Auto";
 
         await pointToElement(elements.applyButton);
+        if (demoCancelled) return;
         applySettings();
-        await sleep(600);
+        await sleep(700);
 
         hideDemoPointer();
-        freePlay(midiFromName("C4"), -101);
-        freePlay(midiFromName("E4"), -102);
-        freePlay(midiFromName("G4"), -103);
-        await sleep(1500);
-        releaseAllKeys();
-        renderHeldNotes();
-        await sleep(300);
-
         setStatus("demoFree");
-        setAnswer("raw", { text: "Non piu andrai" });
-        await sleep(800);
+        setAnswer("raw", { text: "Non più andrai · Piano" });
+        await sleep(600);
+        if (demoCancelled) return;
 
         await playNonPiuAndraiDemo();
     } finally {
+        const wasCancelled = demoCancelled;
         hideDemoPointer();
+        hideDemoMusicPointers();
+        window.clearTimeout(demoOctaveTapTimeout);
+        player.cancelQueue(audioContext);
+        demoSelectedOctave = null;
         demoRunning = false;
+        demoCancelled = false;
+        testActive = false;
+        currentMidi = null;
+        answered = false;
+        releaseAllKeys();
+        resetKeyboardColors();
+        drawStaff();
         setDemoControlsLocked(false);
+        setStatus(wasCancelled ? "stopped" : "demoEnd");
+        setAnswer("free");
     }
 }
 

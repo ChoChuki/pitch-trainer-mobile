@@ -58,7 +58,13 @@ select { width: 100%; min-height: 42px; border-radius: 10px; border: 1px solid #
 #staff { display: block; width: 100%; height: auto; }
 .keyboard-card { padding: 10px; }
 .keyboard-scroller { overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; scrollbar-width: thin; overscroll-behavior-x: contain; }
-.keyboard { position: relative; height: 230px; min-width: 100%; user-select: none; }
+.keyboard { position: relative; height: 248px; min-width: 100%; user-select: none; }
+.octave-nav { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: thin; padding: 2px 0 10px; }
+.octave-nav[hidden] { display: none; }
+.octave-jump { min-width: 58px; min-height: 32px; flex-shrink: 0; padding: 4px 9px; font-size: 13px; border: 1px solid #d1d5db; color: #374151; background: #f9fafb; border-radius: 9px; }
+.octave-jump.current { color: #1d4ed8; background: #eff6ff; border-color: #93c5fd; }
+.octave-mark { position: absolute; top: 225px; display: inline-flex; align-items: center; padding: 0 3px; height: 18px; color: #1d4ed8; font-size: 11px; font-weight: 800; white-space: nowrap; pointer-events: none; z-index: 4; border-left: 2px solid #60a5fa; background: #eff6ff; border-radius: 0 3px 3px 0; }
+
 .piano-key { position: absolute; top: 0; border: 1px solid #111827; border-radius: 0 0 7px 7px; padding: 0; touch-action: pan-x; user-select: none; }
 .white-key { width: 52px; height: 220px; background: #ffffff; z-index: 1; }
 .black-key { width: 32px; height: 138px; background: #111111; z-index: 2; }
@@ -89,3 +95,18 @@ select { width: 100%; min-height: 42px; border-radius: 10px; border: 1px solid #
     .controls { grid-template-columns: repeat(5, 1fr); }
     .controls button { font-size: 14px; }
 }
+
+/* Distinct simultaneous touch indicators during automated piano performance. */
+.demo-music-pointer {
+    position: fixed;
+    width: 17px;
+    height: 17px;
+    background: rgba(37, 99, 235, 0.28);
+    border: 2px solid rgba(37, 99, 235, 0.64);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9998;
+    opacity: 0;
+    pointer-events: none;
+}
+.demo-music-pointer.visible { opacity: 1; }

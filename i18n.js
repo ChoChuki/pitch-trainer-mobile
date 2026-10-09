@@ -1,5 +1,7 @@
 const TRANSLATIONS = {
   "en": {
+    "octaveNavigation": "Octave navigation",
+    "jumpToOctave": "Jump to {note}",
     "language": "Language",
     "from": "From",
     "to": "To",
@@ -11,6 +13,7 @@ const TRANSLATIONS = {
     "next": "Next",
     "stop": "Stop Test",
     "demo": "Demo",
+    "stopDemo": "Stop Demo",
     "loading": "Loading piano samples...",
     "ready": "Piano samples are ready.",
     "choose": "Choose the correct piano key.",
@@ -41,6 +44,8 @@ const TRANSLATIONS = {
     "held": "Playing {count} note(s)"
   },
   "de": {
+    "octaveNavigation": "Oktavnavigation",
+    "jumpToOctave": "Zu {note} springen",
     "language": "Sprache",
     "from": "Von",
     "to": "Bis",
@@ -52,6 +57,7 @@ const TRANSLATIONS = {
     "next": "Weiter",
     "stop": "Test beenden",
     "demo": "Demo",
+    "stopDemo": "Demo beenden",
     "loading": "Klavierkl\u00e4nge werden geladen...",
     "ready": "Klavierkl\u00e4nge sind bereit.",
     "choose": "Tippe auf die richtige Klaviertaste.",
@@ -82,6 +88,8 @@ const TRANSLATIONS = {
     "held": "{count} Taste(n) gehalten"
   },
   "ja": {
+    "octaveNavigation": "オクターブ移動",
+    "jumpToOctave": "{note} に移動",
     "language": "\u8a00\u8a9e",
     "from": "\u958b\u59cb\u97f3",
     "to": "\u7d42\u4e86\u97f3",
@@ -93,6 +101,7 @@ const TRANSLATIONS = {
     "next": "\u6b21\u3078",
     "stop": "\u30c6\u30b9\u30c8\u7d42\u4e86",
     "demo": "\u30c7\u30e2",
+    "stopDemo": "デモを停止",
     "loading": "\u30d4\u30a2\u30ce\u97f3\u6e90\u3092\u8aad\u307f\u8fbc\u3093\u3067\u3044\u307e\u3059...",
     "ready": "\u6e96\u5099\u304c\u3067\u304d\u307e\u3057\u305f\u3002",
     "choose": "\u6b63\u3057\u3044\u9375\u76e4\u3092\u9078\u3093\u3067\u304f\u3060\u3055\u3044\u3002",
@@ -123,6 +132,8 @@ const TRANSLATIONS = {
     "held": "{count}\u97f3\u3092\u6f14\u594f\u4e2d"
   },
   "it": {
+    "octaveNavigation": "Navigazione ottave",
+    "jumpToOctave": "Vai a {note}",
     "language": "Lingua",
     "from": "Da",
     "to": "A",
@@ -134,6 +145,7 @@ const TRANSLATIONS = {
     "next": "Avanti",
     "stop": "Termina test",
     "demo": "Demo",
+    "stopDemo": "Ferma demo",
     "loading": "Caricamento dei suoni del pianoforte...",
     "ready": "Suoni del pianoforte pronti.",
     "choose": "Tocca il tasto corretto.",
@@ -164,6 +176,8 @@ const TRANSLATIONS = {
     "held": "{count} nota/e in esecuzione"
   },
   "el": {
+    "octaveNavigation": "Πλοήγηση οκτάβας",
+    "jumpToOctave": "Μετάβαση στο {note}",
     "language": "\u0393\u03bb\u03ce\u03c3\u03c3\u03b1",
     "from": "\u0391\u03c0\u03cc",
     "to": "\u0388\u03c9\u03c2",
@@ -175,6 +189,7 @@ const TRANSLATIONS = {
     "next": "\u0395\u03c0\u03cc\u03bc\u03b5\u03bd\u03bf",
     "stop": "\u03a4\u03ad\u03bb\u03bf\u03c2 \u03c4\u03b5\u03c3\u03c4",
     "demo": "\u0395\u03c0\u03af\u03b4\u03b5\u03b9\u03be\u03b7",
+    "stopDemo": "Διακοπή επίδειξης",
     "loading": "\u03a6\u03cc\u03c1\u03c4\u03c9\u03c3\u03b7 \u03ae\u03c7\u03c9\u03bd \u03c0\u03b9\u03ac\u03bd\u03bf\u03c5...",
     "ready": "\u039f\u03b9 \u03ae\u03c7\u03bf\u03b9 \u03b5\u03af\u03bd\u03b1\u03b9 \u03ad\u03c4\u03bf\u03b9\u03bc\u03bf\u03b9.",
     "choose": "\u0395\u03c0\u03af\u03bb\u03b5\u03be\u03b5 \u03c4\u03bf \u03c3\u03c9\u03c3\u03c4\u03cc \u03c0\u03bb\u03ae\u03ba\u03c4\u03c1\u03bf.",
@@ -205,6 +220,8 @@ const TRANSLATIONS = {
     "held": "\u03a0\u03b1\u03af\u03b6\u03bf\u03bd\u03c4\u03b1\u03b9 {count} \u03bd\u03cc\u03c4\u03b5\u03c2"
   },
   "zh-TW": {
+    "octaveNavigation": "八度定位",
+    "jumpToOctave": "跳至 {note}",
     "language": "\u8a9e\u8a00",
     "from": "\u8d77\u59cb\u97f3",
     "to": "\u7d50\u675f\u97f3",
@@ -216,6 +233,7 @@ const TRANSLATIONS = {
     "next": "\u4e0b\u4e00\u984c",
     "stop": "\u7d50\u675f\u6e2c\u9a57",
     "demo": "\u793a\u7bc4",
+    "stopDemo": "停止演示",
     "loading": "\u6b63\u5728\u8f09\u5165\u92fc\u7434\u97f3\u6e90...",
     "ready": "\u92fc\u7434\u97f3\u6e90\u5df2\u5c31\u7dd2\u3002",
     "choose": "\u8acb\u9078\u64c7\u6b63\u78ba\u7684\u7434\u9375\u3002",
