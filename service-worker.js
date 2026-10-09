@@ -1,16 +1,9 @@
-const CACHE_NAME = "pitch-trainer-mobile-v1";
-
-const LOCAL_ASSETS = [
-    "./",
-    "./index.html",
-    "./styles.css",
-    "./app.js",
-    "./manifest.webmanifest",
-    "./icon-192.png",
-    "./icon-512.png"
+const CACHE_NAME = "pitch-trainer-mobile-v3";
+const ASSETS = [
+    "./", "./index.html", "./styles.css", "./app.js", "./i18n.js",
+    "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"
 ];
-
-const EXTERNAL_ASSETS = [
+const EXTERNAL = [
     "https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js",
     "https://surikov.github.io/webaudiofontdata/sound/0000_JCLive_sf2_file.js"
 ];
@@ -18,33 +11,24 @@ const EXTERNAL_ASSETS = [
 self.addEventListener("install", (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then(async (cache) => {
-            await cache.addAll(LOCAL_ASSETS);
-
-            for (const url of EXTERNAL_ASSETS) {
-                const request = new Request(url, {
-                    mode: "no-cors"
-                });
-
+            await cache.addAll(ASSETS);
+            for (const url of EXTERNAL) {
+                const request = new Request(url, { mode: "no-cors" });
                 const response = await fetch(request);
                 await cache.put(request, response);
             }
         })
     );
-
     self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
     event.waitUntil(
-        caches.keys().then((names) => {
-            return Promise.all(
-                names
-                    .filter((name) => name !== CACHE_NAME)
-                    .map((name) => caches.delete(name))
-            );
-        })
+        caches.keys().then((names) => Promise.all(
+            names.filter((name) => name !== CACHE_NAME)
+                .map((name) => caches.delete(name))
+        ))
     );
-
     self.clients.claim();
 });
 
@@ -58,21 +42,15 @@ self.addEventListener("fetch", (event) => {
             if (cached) {
                 return cached;
             }
-
             return fetch(event.request).then((response) => {
                 const copy = response.clone();
-
-                caches.open(CACHE_NAME).then((cache) => {
-                    cache.put(event.request, copy);
-                });
-
+                caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
                 return response;
-            }).catch(() => {
+            }).catch(async () => {
                 if (event.request.mode === "navigate") {
                     return caches.match("./index.html");
                 }
-
-                throw new Error("Offline asset unavailable.");
+                return Response.error();
             });
         })
     );

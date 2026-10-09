@@ -15,37 +15,47 @@
 <body>
     <main class="app-shell">
         <header class="app-header">
-            <h1>Pitch Trainer</h1>
+            <div class="header-top">
+                <div class="header-spacer"></div>
+                <h1 id="appTitle">Pitch Trainer</h1>
+                <label class="language-picker" for="languageSelect">
+                    <span id="languageLabel">Language</span>
+                    <select id="languageSelect" aria-label="Language">
+                        <option value="en">English</option>
+                        <option value="de">Deutsch</option>
+                        <option value="ja">&#26085;&#26412;&#35486;</option>
+                        <option value="it">Italiano</option>
+                        <option value="el">&#917;&#955;&#955;&#951;&#957;&#953;&#954;&#940;</option>
+                        <option value="zh-TW">&#32321;&#39636;&#20013;&#25991;</option>
+                    </select>
+                </label>
+            </div>
             <p id="status" class="status">Loading piano samples...</p>
         </header>
 
         <section class="settings-card">
             <div class="settings-grid">
                 <label>
-                    <span>From</span>
+                    <span id="fromLabel">From</span>
                     <select id="startNote"></select>
                 </label>
-
                 <label>
-                    <span>To</span>
+                    <span id="toLabel">To</span>
                     <select id="endNote"></select>
                 </label>
-
                 <label>
-                    <span>Key</span>
+                    <span id="keyLabel">Key</span>
                     <select id="keySelect"></select>
                 </label>
-
                 <label>
-                    <span>Clef</span>
+                    <span id="clefLabel">Clef</span>
                     <select id="clefSelect">
-                        <option>Treble</option>
-                        <option>Bass</option>
-                        <option>Auto</option>
+                        <option value="Treble">Treble</option>
+                        <option value="Bass">Bass</option>
+                        <option value="Auto">Auto</option>
                     </select>
                 </label>
             </div>
-
             <button id="applyButton" class="secondary full-width" disabled>Apply</button>
         </section>
 
@@ -54,11 +64,12 @@
             <button id="replayButton" class="secondary" disabled>Replay</button>
             <button id="nextButton" class="secondary" disabled>Next</button>
             <button id="stopButton" class="danger" disabled>Stop Test</button>
+            <button id="demoButton" class="secondary" disabled>Demo</button>
         </section>
 
         <section class="answer-card">
             <div id="answerText" class="answer-text">Free play mode</div>
-            <svg id="staff" viewBox="0 0 800 180" role="img" aria-label="Music staff"></svg>
+            <svg id="staff" viewBox="0 0 800 185" role="img" aria-label="Music staff"></svg>
         </section>
 
         <section class="keyboard-card">
@@ -66,14 +77,12 @@
                 <div id="keyboard" class="keyboard"></div>
             </div>
         </section>
-
-        <p class="hint">
-            In free play mode, tap any key to hear it and see its note name, solfege, and staff position.
-        </p>
+        <p id="helpText" class="hint"></p>
     </main>
 
     <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
     <script src="https://surikov.github.io/webaudiofontdata/sound/0000_JCLive_sf2_file.js"></script>
+    <script src="./i18n.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>
