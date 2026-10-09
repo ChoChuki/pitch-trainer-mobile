@@ -110,3 +110,39 @@ select { width: 100%; min-height: 42px; border-radius: 10px; border: 1px solid #
     pointer-events: none;
 }
 .demo-music-pointer.visible { opacity: 1; }
+
+/* The demo has a fixed-size viewport: no vertical jumps between one or two
+   staves, long chord labels, or octave shortcut transitions. */
+.app-shell.demo-running .status {
+    height: 28px;
+    min-height: 28px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.app-shell.demo-running .answer-text {
+    height: 48px;
+    min-height: 48px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    display: block;
+    line-height: 44px;
+}
+.app-shell.demo-running #staff {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 800 / 363;
+}
+.app-shell.demo-running .octave-nav[hidden] {
+    display: flex;
+    visibility: hidden;
+}
+.app-shell.demo-running .octave-nav {
+    height: 45px;
+    min-height: 45px;
+}
+.app-shell.demo-running .keyboard-scroller {
+    height: 252px;
+    width: 100%;
+}
