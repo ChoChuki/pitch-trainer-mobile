@@ -1,14 +1,15 @@
-Pitch Trainer Mobile v8
+Pitch Trainer Mobile v9
 
-Demo changes:
-- Beethoven's Ode to Joy theme instead of the Mozart demonstration.
-- Familiar eight-bar melody in C major (transposed up one octave), about 15 s.
-- Light simultaneous piano accompaniment; one treble staff throughout.
-- No bass staff or screen-height expansion during demo.
-- During the musical segment, settings/hint are hidden to keep the keyboard visible.
-- Existing octave shortcuts automatically move the keyboard viewport.
-- Six languages, normal free play with true multipoint, and single-note tests unchanged.
-- Audio resources still load exactly as in v7; they are not uploaded/modified.
+Changes since v8:
+- The demo is still Beethoven's Ode to Joy (8 bars, single treble staff).
+- All six languages now show the correct Beethoven title.
+- More natural phrasing: shorter notes at phrase boundaries, delayed opening
+  attack at the second phrase, lighter accompaniment that respects rests.
+- Existing training, polyphonic free play, layout and octave shortcuts unchanged.
 
-On GitHub Pages replace app.js, styles.css, service-worker.js.
-Or deploy all eight website files in this archive. Cache name is bumped to v8.
+Update GitHub Pages by replacing these three files:
+  app.js
+  i18n.js
+  service-worker.js
+
+Keep all other v8 files. Upload the files to the repository root (not the ZIP).

@@ -1382,10 +1382,32 @@ function buildDemoScore() {
     DEMO_BARS.forEach((bar, index) => {
         let beatPosition = 0;
         const start = index * 4;
+        const breathAfterBar = index === 1 || index === 3 || index === 5;
+        // Delay only the first attack of a new phrase; keep the tempo moving.
+        const entryDelay = index === 4 ? 0.16 : (index === 2 || index === 6 ? 0.06 : 0);
+
         bar.split(" ").forEach((token) => {
             const [name, length] = token.split(":");
             const beats = Number(length);
-            add(name, start + beatPosition, beats * 0.91, 0.82, "melody");
+            const finalNoteInBar = beatPosition + beats === 4;
+            let soundingBeats = beats >= 2 ? beats * 0.91 : beats * 0.86;
+
+            // Give both halves of the tune audible punctuation at their ends.
+            if (breathAfterBar && finalNoteInBar) {
+                soundingBeats = beats - (index === 3 ? 0.48 : 0.32);
+            }
+            if (index === DEMO_BARS.length - 1 && finalNoteInBar) {
+                soundingBeats = 1.91;
+            }
+
+            const accent = beatPosition === 0 ? 0.86 : (beatPosition === 2 ? 0.81 : 0.77);
+            add(
+                name,
+                start + beatPosition + (beatPosition === 0 ? entryDelay : 0),
+                soundingBeats,
+                accent,
+                "melody"
+            );
             beatPosition += beats;
         });
 
@@ -1397,18 +1419,19 @@ function buildDemoScore() {
         if (!chord) throw new Error(`Missing harmony in bar ${index + 1}.`);
 
         if (index === DEMO_BARS.length - 1) {
-            // Wait until the last C5 melody note for a real final tonic cadence.
+            // Sustain a clear tonic cadence, then allow the sound to decay.
             chord.forEach((note, voice) => {
-                add(note, start + 2, 1.85, voice === 0 ? 0.24 : 0.14, "harmony");
+                add(note, start + 2, 1.91, voice === 0 ? 0.24 : 0.14, "harmony");
             });
         } else {
-            // Short, light accompaniment: lower chord tone with soft two-note answers.
-            add(chord[0], start, 0.85, 0.22, "bass");
-            add(chord[1], start + 1, 0.55, 0.12, "harmony");
-            add(chord[2], start + 1, 0.55, 0.12, "harmony");
-            add(chord[0], start + 2, 0.75, 0.17, "bass");
-            add(chord[1], start + 3, 0.55, 0.10, "harmony");
-            add(chord[2], start + 3, 0.55, 0.10, "harmony");
+            // Accompaniment breathes with the melody instead of filling its pauses.
+            add(chord[0], start + entryDelay, 0.78, 0.19, "bass");
+            add(chord[1], start + 1, 0.48, 0.11, "harmony");
+            add(chord[2], start + 1, 0.48, 0.11, "harmony");
+            add(chord[0], start + 2, 0.68, 0.16, "bass");
+            const lastChordLength = breathAfterBar ? 0.36 : 0.49;
+            add(chord[1], start + 3, lastChordLength, 0.10, "harmony");
+            add(chord[2], start + 3, lastChordLength, 0.10, "harmony");
         }
     });
 
