@@ -1,4 +1,4 @@
-const APP_VERSION = "11";
+const APP_VERSION = "13";
 const PLAY_DURATION = 1.4;
 const SUPPORTED_MIN_MIDI = 36;
 const SUPPORTED_MAX_MIDI = 95;
@@ -181,8 +181,9 @@ const BASS_FLAT_POSITIONS = [
     ["F", 2]
 ];
 
-const WHITE_WIDTH = 52;
-const BLACK_WIDTH = 32;
+// An octave fits fully inside the available phone viewport, including B.
+let WHITE_WIDTH = 52;
+let BLACK_WIDTH = 32;
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const elements = {
@@ -194,9 +195,7 @@ const elements = {
     clefSelect: document.getElementById("clefSelect"),
     applyButton: document.getElementById("applyButton"),
     playButton: document.getElementById("playButton"),
-    replayButton: document.getElementById("replayButton"),
     nextButton: document.getElementById("nextButton"),
-    stopButton: document.getElementById("stopButton"),
     staff: document.getElementById("staff"),
     keyboard: document.getElementById("keyboard"),
     keyboardScroller: document.getElementById("keyboardScroller")
@@ -271,8 +270,7 @@ function setLanguage(language) {
     const labels = {
         languageLabel: "language", fromLabel: "from", toLabel: "to",
         keyLabel: "key", clefLabel: "clef", applyButton: "apply",
-        playButton: "play", replayButton: "replay", nextButton: "next",
-        stopButton: "stop", demoButton: "demo", helpText: "hint"
+        playButton: "play", nextButton: "next", demoButton: "demo", helpText: "hint"
     };
     for (const [id, key] of Object.entries(labels)) {
         document.getElementById(id).textContent = t(key);
@@ -290,6 +288,7 @@ function setLanguage(language) {
     for (const button of document.querySelectorAll(".octave-jump")) {
         button.setAttribute("aria-label", t("jumpToOctave", { note: noteName(Number(button.dataset.midi)) }));
     }
+    updatePlayButton();
     setStatus(statusMessage.key, statusMessage.args);
     setAnswer(answerMessage.key, answerMessage.args);
     if (ready) {
@@ -827,6 +826,13 @@ function highlightOctave(midi) {
 }
 
 function drawKeyboard() {
+    // Keep natural-size keys when possible, but fit seven white keys (C-B)
+    // on a phone. Every octave uses the same width and left alignment.
+    const viewport = elements.keyboardScroller.clientWidth;
+    WHITE_WIDTH = Math.min(52, (viewport - 2) / 7);
+    BLACK_WIDTH = WHITE_WIDTH * (32 / 52);
+    elements.keyboard.style.setProperty("--white-width", `${WHITE_WIDTH}px`);
+    elements.keyboard.style.setProperty("--black-width", `${BLACK_WIDTH}px`);
     elements.keyboard.replaceChildren();
     keyElements.clear();
 
@@ -873,7 +879,7 @@ function drawKeyboard() {
         const marker = document.createElement("span");
         marker.className = "octave-mark";
         marker.textContent = group.label;
-        marker.style.left = `${Math.max(0, keyBounds(group.midi).left - minX)}px`;
+        marker.style.left = `${Math.max(0, keyBounds(group.midi).left - minX) + 4}px`;
         elements.keyboard.appendChild(marker);
     });
 
@@ -905,6 +911,7 @@ function drawKeyboard() {
         key.type = "button";
         key.className = `piano-key ${boundsForKey.black ? "black-key" : "white-key"}`;
         key.style.left = `${boundsForKey.left - minX}px`;
+        key.style.width = `${boundsForKey.right - boundsForKey.left}px`;
         key.dataset.midi = String(midi);
         key.setAttribute("aria-label", noteName(midi));
 
@@ -930,9 +937,7 @@ function drawKeyboard() {
 function setControlsEnabled(enabled) {
     elements.applyButton.disabled = !enabled;
     elements.playButton.disabled = !enabled;
-    elements.replayButton.disabled = !enabled;
     elements.nextButton.disabled = !enabled;
-    elements.stopButton.disabled = !enabled;
     elements.startNote.disabled = !enabled;
     elements.endNote.disabled = !enabled;
     elements.keySelect.disabled = !enabled;
@@ -1035,6 +1040,12 @@ async function playTone(midi) {
     );
 }
 
+function updatePlayButton() {
+    elements.playButton.textContent = t(testActive ? "stop" : "play");
+    elements.playButton.classList.toggle("danger", testActive);
+    elements.playButton.classList.toggle("primary", !testActive);
+}
+
 function newQuestion() {
     if (!ready) {
         return;
@@ -1045,6 +1056,7 @@ function newQuestion() {
 
     testActive = true;
     answered = false;
+    updatePlayButton();
     drawStaff(null, true);
     currentMidi = Math.floor(
         Math.random() * (maxMidi - minMidi + 1)
@@ -1053,12 +1065,6 @@ function newQuestion() {
     setStatus("listen");
     setAnswer("choose");
     playTone(currentMidi);
-}
-
-function replay() {
-    if (ready && currentMidi !== null) {
-        playTone(currentMidi);
-    }
 }
 
 function stopTest() {
@@ -1071,6 +1077,7 @@ function stopTest() {
     testActive = false;
     currentMidi = null;
     answered = false;
+    updatePlayButton();
 
     resetKeyboardColors();
     drawStaff();
@@ -1155,6 +1162,7 @@ function applySettings() {
     currentMidi = null;
     answered = false;
     testActive = false;
+    updatePlayButton();
 
     resetKeyboardColors();
     drawKeyboard();
@@ -1230,10 +1238,11 @@ const unlessDemo = (callback) => (event) => {
 };
 
 elements.applyButton.addEventListener("click", unlessDemo(applySettings));
-elements.playButton.addEventListener("click", unlessDemo(newQuestion));
-elements.replayButton.addEventListener("click", unlessDemo(replay));
+elements.playButton.addEventListener("click", unlessDemo(() => {
+    if (testActive) stopTest();
+    else newQuestion();
+}));
 elements.nextButton.addEventListener("click", unlessDemo(newQuestion));
-elements.stopButton.addEventListener("click", unlessDemo(stopTest));
 document.getElementById("languageSelect").addEventListener("change", unlessDemo((event) => setLanguage(event.target.value)));
 document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
@@ -1249,6 +1258,19 @@ populateSelectors();
 setLanguage(resolveInitialLanguage());
 drawKeyboard();
 drawStaff();
+window.addEventListener("resize", () => {
+    if (demoRunning) return;
+    const previousOffset = elements.keyboardScroller.scrollLeft;
+    const oldMinX = keyboardMinX;
+    const target = octaveGroups().reduce((best, group) => {
+        const distance = Math.abs(keyBounds(group.midi).left - oldMinX - previousOffset);
+        return distance < best.distance ? { midi: group.midi, distance } : best;
+    }, { midi: minMidi, distance: Infinity });
+    releaseAllKeys();
+    drawKeyboard();
+    showOctave(target.midi, "auto");
+    // Keep the existing answer and staff contents intact while resizing.
+});
 initializeAudio();
 registerServiceWorker();
 
@@ -1362,6 +1384,7 @@ function startDemoQuestion(midi) {
     testActive = true;
     currentMidi = midi;
     answered = false;
+    updatePlayButton();
     drawStaff(null, true);
 
     setStatus("listen");
@@ -1391,42 +1414,6 @@ function prepareDemoEvents(data) {
 
 const DEMO_EVENTS = prepareDemoEvents(window.DEMO_SCORE_DATA);
 
-function buildDemoOctaveCues(data) {
-    const melody = data.events.filter((event) => event.part === "melody");
-    const cues = [];
-    let previousOctave = null;
-    const quarter = data.ticksPerQuarter;
-    const origin = (6 - 1) * 2 * quarter + 1.5 * quarter;
-    const finalBar = Math.max(...melody.map((event) => event.bar));
-    for (let bar = 6; bar <= finalBar; bar += 1) {
-        const absoluteStart = (bar - 1) * 2 * quarter;
-        const localStart = Math.max(0, absoluteStart - origin);
-        const localEnd = (absoluteStart + 2 * quarter) - origin;
-        const weights = new Map();
-        for (const note of melody) {
-            const overlap = Math.max(0, Math.min(note.end, localEnd) - Math.max(note.start, localStart));
-            if (!overlap) continue;
-            const octave = Math.floor(note.midi / 12) * 12;
-            weights.set(octave, (weights.get(octave) || 0) + overlap);
-        }
-        let octave = previousOctave;
-        let maximum = weights.get(previousOctave) || 0;
-        for (const [candidate, weight] of weights) {
-            if (weight > maximum) {
-                octave = candidate;
-                maximum = weight;
-            }
-        }
-        if (octave !== null && octave !== previousOctave) {
-            cues.push({ tick: localStart, midi: octave });
-            previousOctave = octave;
-        }
-    }
-    return cues;
-}
-
-const DEMO_OCTAVE_CUES = buildDemoOctaveCues(window.DEMO_SCORE_DATA);
-
 function demoJumpOctave(midi) {
     if (midi === null || midi === demoSelectedOctave) return;
     const button = [...document.querySelectorAll(".octave-jump")].find((element) => (
@@ -1434,7 +1421,7 @@ function demoJumpOctave(midi) {
     ));
     if (!button) return;
     demoSelectedOctave = midi;
-    showOctave(midi, "instant");
+    showOctave(midi, "auto");
     highlightOctave(midi);
     const pointer = demoPointer();
     const rect = button.getBoundingClientRect();
@@ -1494,7 +1481,6 @@ async function playForelleDemo() {
     const events = DEMO_EVENTS;
     const finalTick = data.stopTick;
     let next = 0;
-    let nextCue = 0;
     let previousSignature = null;
 
     await new Promise((resolve) => {
@@ -1519,11 +1505,15 @@ async function playForelleDemo() {
                     event.midi, duration, event.volume
                 );
             }
-            while (nextCue < DEMO_OCTAVE_CUES.length && tick >= DEMO_OCTAVE_CUES[nextCue].tick) {
-                demoJumpOctave(DEMO_OCTAVE_CUES[nextCue].midi);
-                nextCue += 1;
-            }
             const sounding = events.filter((event) => event.start <= tick && tick < event.end);
+            // Do not choose the most-used octave of an entire measure.
+            // It can hide currently playing notes across C4/C5 boundaries.
+            // The melody is monophonic; follow its current pitch directly.
+            // In a rest, get ready for the next note so the first key is visible.
+            const visibleEvent = sounding[0] || events.find((event) => event.start > tick);
+            if (visibleEvent) {
+                demoJumpOctave(Math.floor(visibleEvent.midi / 12) * 12);
+            }
             const signature = sounding.map((event) => event.midi).sort((a, b) => a - b).join(",");
             if (signature !== previousSignature) {
                 renderDemoChord(sounding);
@@ -1578,6 +1568,7 @@ function restoreDemoSnapshot(snapshot) {
     testActive = state.testActive;
     answered = state.answered;
     currentMidi = state.currentMidi;
+    updatePlayButton();
 
     resetKeyboardColors();
     snapshot.keyClasses.forEach(({ midi, state: classNames }) => {
@@ -1641,7 +1632,7 @@ async function runDemo() {
         await sleep(720);
 
         if (demoCancelled) return;
-        await pointToElement(elements.stopButton);
+        await pointToElement(elements.playButton);
         if (demoCancelled) return;
         stopTest();
         await sleep(360);

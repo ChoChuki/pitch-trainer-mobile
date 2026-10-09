@@ -1,25 +1,21 @@
-Pitch Trainer Mobile v12
+Pitch Trainer Mobile v13
 
-Demo music
-- Schubert: Die Forelle, D.550, public-domain original MIDI vocal track.
-- Original MIDI source: https://github.com/SMUGSterling/FretFree/blob/main/scores/mutopia-502/original.mid
-- Git blob SHA: c2127b69737868a82f7337d37835da142ba8f34c
-- Public-domain score reference: https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=502
-- Measures: pickup in bar 6 through bar 26 (inclusive), melody ONLY, no accompaniment.
-- Exact extracted MIDI pitches and relative tick positions in demo-score.js.
-- v11 opening 29 melody events have been checked against original MIDI extraction.
-- Ending: bar 26 Db5 quarter note then a quarter rest (not a cut-off mid-phrase).
-- Demo playing speed: 100 quarter notes/minute; notation remains unchanged.
-- The music playback lasts about 24 seconds. Total walkthrough is longer.
+Changes from v12:
+- The UI has three buttons on one row: Play (toggles to Stop Test), Next, Demo.
+- The Replay button has been removed; the Stop Test action still exists via Play.
+- Mobile screen height reduced without changing the default settings or training logic.
+- Piano white keys resize slightly to fit C through B within the available viewport.
+- Demo follows the currently sounding melody note to choose the correct octave.
+- Die Forelle demo is now just the first part: verified MIDI melody,
+  original pickup bar 6 to tonic Db5 at bar 18 (first dotted quarter).
+  The following upbeat note is omitted so the excerpt ends with a rest.
+- Tempo, pitches, durations and rests of retained MIDI notes are unchanged.
+- Demo still restores the original state when finished or cancelled.
 
-Deploy via GitHub Pages
-- Upload app.js, demo-score.js, service-worker.js to repository root.
-- Leave all other v11 files unchanged.
-- Reload the website after deployment and reopen the PWA.
+Deploy:
+Upload index.html, styles.css, app.js, demo-score.js and service-worker.js
+to the same root of the GitHub Pages repository. Keep other files unchanged.
 
-Independent reference verification
-- Source MIDI reference data is stored at tools/original_midi_excerpt.json.
-- Run: python tools/verify_against_midi.py [path/to/original.mid]
-- Without a supplied MIDI path, the checker downloads the source MIDI from
-  the upstream Mutopia URL. This network-dependent test may require internet.
-- Use: node tools/test_score.js to run local structural checks.
+Check:
+node --check app.js && node --check demo-score.js
+python tools/verify_against_midi.py path/to/original.mid
