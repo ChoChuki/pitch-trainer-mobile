@@ -1,5 +1,13 @@
 const TRANSLATIONS = {
   "en": {
+    "mode": "Mode",
+    "single": "Single note",
+    "interval": "Two notes",
+    "listenInterval": "First note: {note}. Listen for the second.",
+    "chooseInterval": "Tap the second note. Tap the staff to hear both again.",
+    "semitones": "semitones",
+    "replayInterval": "Replay the two notes",
+    "intervalRangeError": "Two-note mode needs at least two pitches in the range.",
     "octaveNavigation": "Octave navigation",
     "jumpToOctave": "Jump to {note}",
     "language": "Language",
@@ -45,6 +53,14 @@ const TRANSLATIONS = {
     "held": "Playing {count} note(s)"
   },
   "de": {
+    "mode": "Modus",
+    "single": "Einzelton",
+    "interval": "Zwei T\xf6ne",
+    "listenInterval": "Erster Ton: {note}. H\xf6re auf den zweiten.",
+    "chooseInterval": "Zweiten Ton w\xe4hlen. Notensystem antippen zum Wiederholen.",
+    "semitones": "Halbt\xf6ne",
+    "replayInterval": "Beide T\xf6ne wiederholen",
+    "intervalRangeError": "F\xfcr zwei T\xf6ne muss der Bereich mindestens zwei Tonh\xf6hen enthalten.",
     "octaveNavigation": "Oktavnavigation",
     "jumpToOctave": "Zu {note} springen",
     "language": "Sprache",
@@ -90,6 +106,14 @@ const TRANSLATIONS = {
     "held": "{count} Taste(n) gehalten"
   },
   "ja": {
+    "mode": "\u30e2\u30fc\u30c9",
+    "single": "\u5358\u97f3",
+    "interval": "2\u97f3",
+    "listenInterval": "\u57fa\u6e96\u97f3\uff1a{note}\u3002\u6b21\u306e\u97f3\u3092\u8074\u3044\u3066\u304f\u3060\u3055\u3044\u3002",
+    "chooseInterval": "2\u97f3\u76ee\u3092\u9375\u76e4\u3067\u9078\u629e\u3002\u4e94\u7dda\u8b5c\u3092\u30bf\u30c3\u30d7\u3057\u3066\u518d\u751f\u3002",
+    "semitones": "\u534a\u97f3",
+    "replayInterval": "2\u3064\u306e\u97f3\u3092\u3082\u3046\u4e00\u5ea6\u518d\u751f",
+    "intervalRangeError": "2\u97f3\u30e2\u30fc\u30c9\u3067\u306f\u3001\u97f3\u57df\u306b2\u3064\u4ee5\u4e0a\u306e\u97f3\u304c\u5fc5\u8981\u3067\u3059\u3002",
     "octaveNavigation": "\u30aa\u30af\u30bf\u30fc\u30d6\u79fb\u52d5",
     "jumpToOctave": "{note} \u306b\u79fb\u52d5",
     "language": "\u8a00\u8a9e",
@@ -135,6 +159,14 @@ const TRANSLATIONS = {
     "held": "{count}\u97f3\u3092\u6f14\u594f\u4e2d"
   },
   "it": {
+    "mode": "Modalit\xe0",
+    "single": "Nota singola",
+    "interval": "Due note",
+    "listenInterval": "Prima nota: {note}. Ascolta la seconda.",
+    "chooseInterval": "Scegli la seconda nota. Tocca il rigo per riascoltare.",
+    "semitones": "semitoni",
+    "replayInterval": "Riascolta le due note",
+    "intervalRangeError": "Servono almeno due altezze per la modalit\xe0 due note.",
     "octaveNavigation": "Navigazione ottave",
     "jumpToOctave": "Vai a {note}",
     "language": "Lingua",
@@ -180,6 +212,14 @@ const TRANSLATIONS = {
     "held": "{count} nota/e in esecuzione"
   },
   "el": {
+    "mode": "\u039b\u03b5\u03b9\u03c4\u03bf\u03c5\u03c1\u03b3\u03af\u03b1",
+    "single": "\u039c\u03af\u03b1 \u03bd\u03cc\u03c4\u03b1",
+    "interval": "\u0394\u03cd\u03bf \u03bd\u03cc\u03c4\u03b5\u03c2",
+    "listenInterval": "\u03a0\u03c1\u03ce\u03c4\u03b7 \u03bd\u03cc\u03c4\u03b1: {note}. \u0386\u03ba\u03bf\u03c5 \u03c4\u03b7 \u03b4\u03b5\u03cd\u03c4\u03b5\u03c1\u03b7.",
+    "chooseInterval": "\u0395\u03c0\u03af\u03bb\u03b5\u03be\u03b5 \u03c4\u03b7 \u03b4\u03b5\u03cd\u03c4\u03b5\u03c1\u03b7 \u03bd\u03cc\u03c4\u03b1. \u03a0\u03ac\u03c4\u03b7\u03c3\u03b5 \u03c4\u03bf \u03c0\u03b5\u03bd\u03c4\u03ac\u03b3\u03c1\u03b1\u03bc\u03bc\u03bf \u03b3\u03b9\u03b1 \u03b5\u03c0\u03b1\u03bd\u03ac\u03bb\u03b7\u03c8\u03b7.",
+    "semitones": "\u03b7\u03bc\u03b9\u03c4\u03cc\u03bd\u03b9\u03b1",
+    "replayInterval": "\u0395\u03c0\u03b1\u03bd\u03ac\u03bb\u03b7\u03c8\u03b7 \u03b4\u03cd\u03bf \u03bd\u03bf\u03c4\u03ce\u03bd",
+    "intervalRangeError": "\u0391\u03c0\u03b1\u03b9\u03c4\u03bf\u03cd\u03bd\u03c4\u03b1\u03b9 \u03c4\u03bf\u03c5\u03bb\u03ac\u03c7\u03b9\u03c3\u03c4\u03bf\u03bd \u03b4\u03cd\u03bf \u03bd\u03cc\u03c4\u03b5\u03c2 \u03b3\u03b9\u03b1 \u03c4\u03b7 \u03bb\u03b5\u03b9\u03c4\u03bf\u03c5\u03c1\u03b3\u03af\u03b1 \u03b4\u03cd\u03bf \u03bd\u03bf\u03c4\u03ce\u03bd.",
     "octaveNavigation": "\u03a0\u03bb\u03bf\u03ae\u03b3\u03b7\u03c3\u03b7 \u03bf\u03ba\u03c4\u03ac\u03b2\u03b1\u03c2",
     "jumpToOctave": "\u039c\u03b5\u03c4\u03ac\u03b2\u03b1\u03c3\u03b7 \u03c3\u03c4\u03bf {note}",
     "language": "\u0393\u03bb\u03ce\u03c3\u03c3\u03b1",
@@ -225,6 +265,14 @@ const TRANSLATIONS = {
     "held": "\u03a0\u03b1\u03af\u03b6\u03bf\u03bd\u03c4\u03b1\u03b9 {count} \u03bd\u03cc\u03c4\u03b5\u03c2"
   },
   "zh-TW": {
+    "mode": "\u6a21\u5f0f",
+    "single": "\u55ae\u97f3",
+    "interval": "\u96d9\u97f3",
+    "listenInterval": "\u57fa\u6e96\u97f3\uff1a{note}\u3002\u8acb\u807d\u7b2c\u4e8c\u500b\u97f3\u3002",
+    "chooseInterval": "\u8acb\u6309\u7b2c\u4e8c\u500b\u97f3\u7684\u7434\u9375\u3002\u9ede\u4e94\u7dda\u8b5c\u53ef\u91cd\u64ad\u3002",
+    "semitones": "\u534a\u97f3",
+    "replayInterval": "\u91cd\u64ad\u5169\u500b\u97f3",
+    "intervalRangeError": "\u96d9\u97f3\u6a21\u5f0f\u9700\u8981\u97f3\u57df\u5305\u542b\u81f3\u5c11\u5169\u500b\u4e0d\u540c\u97f3\u9ad8\u3002",
     "octaveNavigation": "\u516b\u5ea6\u5b9a\u4f4d",
     "jumpToOctave": "\u8df3\u81f3 {note}",
     "language": "\u8a9e\u8a00",

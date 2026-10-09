@@ -1,4 +1,4 @@
-const APP_VERSION = "15";
+const APP_VERSION = "16";
 const PLAY_DURATION = 1.4;
 const SUPPORTED_MIN_MIDI = 36;
 const SUPPORTED_MAX_MIDI = 95;
@@ -193,6 +193,7 @@ const elements = {
     endNote: document.getElementById("endNote"),
     keySelect: document.getElementById("keySelect"),
     clefSelect: document.getElementById("clefSelect"),
+    modeSelect: document.getElementById("modeSelect"),
     applyButton: document.getElementById("applyButton"),
     playButton: document.getElementById("playButton"),
     nextButton: document.getElementById("nextButton"),
@@ -205,6 +206,9 @@ let minMidi = DEFAULT_MIN_MIDI;
 let maxMidi = DEFAULT_MAX_MIDI;
 let keyName = "C major";
 let clefMode = "Treble";
+let testMode = "single";
+let currentReferenceMidi = null;
+let questionSerial = 0;
 let currentMidi = null;
 let answered = false;
 let testActive = false;
@@ -269,7 +273,7 @@ function setLanguage(language) {
     document.getElementById("languageSelect").value = currentLanguage;
     const labels = {
         languageLabel: "language", fromLabel: "from", toLabel: "to",
-        keyLabel: "key", clefLabel: "clef", applyButton: "apply",
+        keyLabel: "key", clefLabel: "clef", modeLabel: "mode", applyButton: "apply",
         playButton: "play", nextButton: "next", demoButton: "demo", helpText: "hint"
     };
     for (const [id, key] of Object.entries(labels)) {
@@ -279,6 +283,9 @@ function setLanguage(language) {
     for (const option of keySelect.options) {
         const [tonic, mode] = option.value.split(" ");
         option.textContent = `${tonic} ${t(mode)}`;
+    }
+    for (const option of elements.modeSelect.options) {
+        option.textContent = t(option.value);
     }
     const clefSelect = elements.clefSelect;
     for (const option of clefSelect.options) {
@@ -295,7 +302,7 @@ function setLanguage(language) {
         if (!testActive && activePointers.size > 0) {
             renderHeldNotes();
         } else if (testActive && answered && currentMidi !== null) {
-            answerMessage.args.text = `${solfegeName(currentMidi, KEY_FIFTHS[keyName])}    ${spelledNoteName(currentMidi, KEY_FIFTHS[keyName])}`;
+            setAnswer("raw", { text: formatAnswerText() });
         }
     }
     if (typeof drawStaff === "function" && !demoRunning) {
@@ -304,9 +311,10 @@ function setLanguage(language) {
         } else if (answered && currentMidi !== null) {
             drawStaff(currentMidi);
         } else {
-            drawStaff(null, testActive && !answered);
+            drawQuestionStaff();
         }
     }
+    updateStaffReplayAccess();
 }
 
 function noteName(midi) {
@@ -1021,6 +1029,51 @@ function renderHeldNotes() {
     renderNotes(midis);
 }
 
+function drawQuestionStaff() {
+    if (testActive && !answered && testMode === "interval" && currentReferenceMidi !== null) {
+        drawStaff(currentReferenceMidi);
+    } else {
+        drawStaff(null, testActive && !answered);
+    }
+}
+
+function updateStaffReplayAccess() {
+    const canReplay = testActive && !answered && testMode === "interval";
+    elements.staff.setAttribute("role", canReplay ? "button" : "img");
+    elements.staff.setAttribute("tabindex", canReplay ? "0" : "-1");
+    elements.staff.setAttribute("aria-label", canReplay ? t("replayInterval") : "Music staff");
+    elements.staff.style.cursor = canReplay ? "pointer" : "";
+}
+
+function formatAnswerText() {
+    const fifths = KEY_FIFTHS[keyName];
+    if (testMode === "interval" && currentReferenceMidi !== null) {
+        const difference = currentMidi - currentReferenceMidi;
+        const sign = difference > 0 ? "+" : "";
+        return `${spelledNoteName(currentReferenceMidi, fifths)} \u2192 ${spelledNoteName(currentMidi, fifths)} (${sign}${difference} ${t("semitones")})`;
+    }
+    return `${solfegeName(currentMidi, fifths)}    ${spelledNoteName(currentMidi, fifths)}`;
+}
+
+async function playQuestion() {
+    if (!ready || currentMidi === null) return;
+    const serial = questionSerial;
+    const target = currentMidi;
+    const reference = currentReferenceMidi;
+    if (testMode !== "interval" || reference === null) {
+        playTone(target);
+        return;
+    }
+    await ensureAudio();
+    if (serial !== questionSerial || !testActive || answered || target !== currentMidi) return;
+    player.cancelQueue(audioContext);
+    const start = audioContext.currentTime + 0.05;
+    player.queueWaveTable(audioContext, audioContext.destination, pianoPreset,
+        start, reference, 0.6, 0.75);
+    player.queueWaveTable(audioContext, audioContext.destination, pianoPreset,
+        start + 0.8, target, 0.9, 0.75);
+}
+
 async function playTone(midi) {
     if (!ready) {
         return;
@@ -1056,15 +1109,28 @@ function newQuestion() {
 
     testActive = true;
     answered = false;
+    questionSerial += 1;
     updatePlayButton();
-    drawStaff(null, true);
-    currentMidi = Math.floor(
-        Math.random() * (maxMidi - minMidi + 1)
-    ) + minMidi;
-
-    setStatus("listen");
-    setAnswer("choose");
-    playTone(currentMidi);
+    if (testMode === "interval") {
+        currentReferenceMidi = Math.floor(Math.random() * (maxMidi - minMidi + 1)) + minMidi;
+        const targets = [];
+        for (let pitch = minMidi; pitch <= maxMidi; pitch += 1) {
+            if (pitch !== currentReferenceMidi && Math.abs(pitch - currentReferenceMidi) <= 12) {
+                targets.push(pitch);
+            }
+        }
+        currentMidi = targets[Math.floor(Math.random() * targets.length)];
+        setStatus("listenInterval", { note: spelledNoteName(currentReferenceMidi, KEY_FIFTHS[keyName]) });
+        setAnswer("chooseInterval");
+    } else {
+        currentReferenceMidi = null;
+        currentMidi = Math.floor(Math.random() * (maxMidi - minMidi + 1)) + minMidi;
+        setStatus("listen");
+        setAnswer("choose");
+    }
+    drawQuestionStaff();
+    updateStaffReplayAccess();
+    playQuestion();
 }
 
 function stopTest() {
@@ -1076,8 +1142,11 @@ function stopTest() {
     releaseAllKeys();
     testActive = false;
     currentMidi = null;
+    currentReferenceMidi = null;
+    questionSerial += 1;
     answered = false;
     updatePlayButton();
+    updateStaffReplayAccess();
 
     resetKeyboardColors();
     drawStaff();
@@ -1103,11 +1172,12 @@ function freePlay(midi, pointerId) {
 
 function answer(selectedMidi) {
     answered = true;
+    questionSerial += 1;
+    updateStaffReplayAccess();
 
     const correctAnswer = selectedMidi === currentMidi;
     const fifths = KEY_FIFTHS[keyName];
     const targetName = spelledNoteName(currentMidi, fifths);
-    const targetSolfege = solfegeName(currentMidi, fifths);
 
     resetKeyboardColors();
 
@@ -1120,7 +1190,7 @@ function answer(selectedMidi) {
         setStatus("wrong", { note: targetName });
     }
 
-    setAnswer("raw", { text: `${targetSolfege}    ${targetName}` });
+    setAnswer("raw", { text: formatAnswerText() });
     drawStaff(currentMidi);
     playTone(currentMidi);
 }
@@ -1151,18 +1221,26 @@ function applySettings() {
         setStatus("invalidRange");
         return;
     }
+    if (elements.modeSelect.value === "interval" && startMidi === endMidi) {
+        setStatus("intervalRangeError");
+        return;
+    }
 
     minMidi = startMidi;
     maxMidi = endMidi;
     keyName = elements.keySelect.value;
     clefMode = elements.clefSelect.value;
+    testMode = elements.modeSelect.value;
 
     releaseAllKeys();
     window.clearTimeout(freeDisplayTimeout);
     currentMidi = null;
+    currentReferenceMidi = null;
+    questionSerial += 1;
     answered = false;
     testActive = false;
     updatePlayButton();
+    updateStaffReplayAccess();
 
     resetKeyboardColors();
     drawKeyboard();
@@ -1203,6 +1281,7 @@ function populateSelectors() {
     elements.endNote.value = String(DEFAULT_MAX_MIDI);
     elements.keySelect.value = "C major";
     elements.clefSelect.value = "Treble";
+    elements.modeSelect.value = "single";
 }
 
 function initializeAudio() {
@@ -1243,6 +1322,15 @@ elements.playButton.addEventListener("click", unlessDemo(() => {
     else newQuestion();
 }));
 elements.nextButton.addEventListener("click", unlessDemo(newQuestion));
+elements.staff.addEventListener("click", unlessDemo(() => {
+    if (testActive && !answered && testMode === "interval") playQuestion();
+}));
+elements.staff.addEventListener("keydown", unlessDemo((event) => {
+    if (testActive && !answered && testMode === "interval" && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        playQuestion();
+    }
+}));
 document.getElementById("languageSelect").addEventListener("change", unlessDemo((event) => setLanguage(event.target.value)));
 document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
@@ -1379,17 +1467,24 @@ function setDemoControlsLocked(locked) {
     button.textContent = locked ? t("stopDemo") : t("demo");
 }
 
-function startDemoQuestion(midi) {
+function startDemoQuestion(midi, referenceMidi = null) {
     resetKeyboardColors();
     testActive = true;
+    questionSerial += 1;
     currentMidi = midi;
+    currentReferenceMidi = testMode === "interval" ? referenceMidi : null;
     answered = false;
     updatePlayButton();
-    drawStaff(null, true);
-
-    setStatus("listen");
-    setAnswer("choose");
-    playTone(currentMidi);
+    drawQuestionStaff();
+    updateStaffReplayAccess();
+    if (testMode === "interval") {
+        setStatus("listenInterval", { note: spelledNoteName(referenceMidi, KEY_FIFTHS[keyName]) });
+        setAnswer("chooseInterval");
+    } else {
+        setStatus("listen");
+        setAnswer("choose");
+    }
+    playQuestion();
 }
 
 async function demoAnswer(selectedMidi) {
@@ -1534,14 +1629,15 @@ async function playForelleDemo() {
 
 function captureDemoSnapshot() {
     return {
-        applied: { minMidi, maxMidi, keyName, clefMode },
+        applied: { minMidi, maxMidi, keyName, clefMode, testMode },
         form: {
             startNote: elements.startNote.value,
             endNote: elements.endNote.value,
             keySelect: elements.keySelect.value,
-            clefSelect: elements.clefSelect.value
+            clefSelect: elements.clefSelect.value,
+            modeSelect: elements.modeSelect.value
         },
-        state: { testActive, answered, currentMidi },
+        state: { testActive, answered, currentMidi, currentReferenceMidi },
         status: { ...statusMessage },
         answer: { ...answerMessage },
         keyClasses: [...keyElements.entries()].map(([midi, element]) => ({
@@ -1559,16 +1655,21 @@ function restoreDemoSnapshot(snapshot) {
     elements.endNote.value = String(applied.maxMidi);
     elements.keySelect.value = applied.keyName;
     elements.clefSelect.value = applied.clefMode;
+    elements.modeSelect.value = applied.testMode;
     applySettings();
 
     elements.startNote.value = form.startNote;
     elements.endNote.value = form.endNote;
     elements.keySelect.value = form.keySelect;
     elements.clefSelect.value = form.clefSelect;
+    elements.modeSelect.value = form.modeSelect;
     testActive = state.testActive;
     answered = state.answered;
     currentMidi = state.currentMidi;
+    currentReferenceMidi = state.currentReferenceMidi;
+    questionSerial += 1;
     updatePlayButton();
+    updateStaffReplayAccess();
 
     resetKeyboardColors();
     snapshot.keyClasses.forEach(({ midi, state: classNames }) => {
@@ -1578,7 +1679,7 @@ function restoreDemoSnapshot(snapshot) {
     if (testActive && currentMidi !== null && answered) {
         drawStaff(currentMidi);
     } else {
-        drawStaff(null, testActive && !answered);
+        drawQuestionStaff();
     }
     setStatus(snapshot.status.key, snapshot.status.args);
     setAnswer(snapshot.answer.key, snapshot.answer.args);
@@ -1603,6 +1704,7 @@ async function runDemo() {
         elements.endNote.value = String(midiFromName("B4"));
         elements.keySelect.value = "C major";
         elements.clefSelect.value = "Treble";
+        elements.modeSelect.value = "single";
 
         await pointToElement(elements.applyButton);
         if (demoCancelled) return;
@@ -1635,13 +1737,38 @@ async function runDemo() {
         await pointToElement(elements.playButton);
         if (demoCancelled) return;
         stopTest();
-        await sleep(360);
+        await sleep(280);
+
+        // Show the additional two-note listening mode before the unchanged Forelle performance.
+        if (demoCancelled) return;
+        elements.modeSelect.value = "interval";
+        await pointToElement(elements.modeSelect);
+        if (demoCancelled) return;
+        await pointToElement(elements.applyButton);
+        if (demoCancelled) return;
+        applySettings();
+        await sleep(230);
+        if (demoCancelled) return;
+        await pointToElement(elements.playButton);
+        if (demoCancelled) return;
+        startDemoQuestion(midiFromName("A4"), midiFromName("F4"));
+        await sleep(1850);
+        if (demoCancelled) return;
+        await demoAnswer(midiFromName("A4"));
+        if (demoCancelled) return;
+        await sleep(500);
+        if (demoCancelled) return;
+        await pointToElement(elements.playButton);
+        if (demoCancelled) return;
+        stopTest();
+        await sleep(280);
 
         if (demoCancelled) return;
         elements.startNote.value = String(midiFromName("C4"));
         elements.endNote.value = String(midiFromName("B5"));
         elements.keySelect.value = "Db major";
         elements.clefSelect.value = "Treble";
+        elements.modeSelect.value = "single";
         await pointToElement(elements.applyButton);
         if (demoCancelled) return;
         applySettings();
