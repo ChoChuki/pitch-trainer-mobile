@@ -1,3 +1,4 @@
+const APP_VERSION = "11";
 const PLAY_DURATION = 1.4;
 const SUPPORTED_MIN_MIDI = 36;
 const SUPPORTED_MAX_MIDI = 95;
@@ -214,6 +215,9 @@ let demoCancelled = false;
 let keyboardMinX = 0;
 let demoSelectedOctave = null;
 let demoOctaveTapTimeout = null;
+let demoTimer = null;
+let demoResolve = null;
+const demoWaits = new Set();
 let currentLanguage = "en";
 let statusMessage = { key: "loading", args: {} };
 let answerMessage = { key: "free", args: {} };
@@ -225,7 +229,7 @@ const activeVoices = new Map();
 
 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 const audioContext = new AudioContextClass();
-const player = new WebAudioFontPlayer();
+const player = typeof WebAudioFontPlayer === "function" ? new WebAudioFontPlayer() : null;
 const pianoPreset = window._tone_0000_JCLive_sf2_file;
 
 function resolveInitialLanguage() {
@@ -282,6 +286,10 @@ function setLanguage(language) {
     for (const option of clefSelect.options) {
         option.textContent = t(option.value.toLowerCase());
     }
+    document.getElementById("octaveNav").setAttribute("aria-label", t("octaveNavigation"));
+    for (const button of document.querySelectorAll(".octave-jump")) {
+        button.setAttribute("aria-label", t("jumpToOctave", { note: noteName(Number(button.dataset.midi)) }));
+    }
     setStatus(statusMessage.key, statusMessage.args);
     setAnswer(answerMessage.key, answerMessage.args);
     if (ready) {
@@ -291,13 +299,13 @@ function setLanguage(language) {
             answerMessage.args.text = `${solfegeName(currentMidi, KEY_FIFTHS[keyName])}    ${spelledNoteName(currentMidi, KEY_FIFTHS[keyName])}`;
         }
     }
-    if (typeof drawStaff === "function") {
+    if (typeof drawStaff === "function" && !demoRunning) {
         if (!testActive && activePointers.size > 0) {
             drawStaff([...new Set(activePointers.values())]);
         } else if (answered && currentMidi !== null) {
             drawStaff(currentMidi);
         } else {
-            drawStaff();
+            drawStaff(null, testActive && !answered);
         }
     }
 }
@@ -555,11 +563,14 @@ function keySignatureLabel(name) {
     return `${tonic} ${t(mode)}`;
 }
 
-function drawStaff(midi = null) {
+function drawStaff(midi = null, showHint = false) {
     const midis = midi === null ? [] : (Array.isArray(midi) ? [...new Set(midi)].sort((a, b) => a - b) : [midi]);
-    // The recorded demo is intentionally a single-staff treble arrangement.
-    // Normal free play still uses its selected clef(s) without restrictions.
-    const clefs = demoRunning ? ["Treble"] : selectStaffClefs(midis);
+    // Staff geometry depends on the selected range, never on held notes.
+    const rangeMidis = [];
+    for (let pitch = minMidi; pitch <= maxMidi; pitch += 1) {
+        rangeMidis.push(pitch);
+    }
+    const clefs = selectStaffClefs(rangeMidis);
     const fifths = KEY_FIFTHS[keyName];
     const mixed = clefs.length === 2;
     const gap = mixed ? 160 : 0;
@@ -576,6 +587,14 @@ function drawStaff(midi = null) {
         allPositions.push(staff.bottomY - 4 * 18, staff.bottomY);
     }
 
+    for (const pitch of rangeMidis) {
+        const clef = clefs.length === 2 ? (pitch < 60 ? "Bass" : "Treble") : clefs[0];
+        const staff = baselines.find((item) => item.clef === clef);
+        const note = spelledNote(pitch, fifths);
+        const geometry = staffGeometry(clef);
+        allPositions.push(staff.bottomY - (diatonicIndex(note.letter, note.octave) - geometry.bottomIndex) * geometry.halfStep);
+    }
+
     for (const pitch of midis) {
         const clef = clefs.length === 2 ? (pitch < 60 ? "Bass" : "Treble") : clefs[0];
         const staff = baselines.find((item) => item.clef === clef);
@@ -589,10 +608,7 @@ function drawStaff(midi = null) {
 
     const top = Math.min(...allPositions, 45) - 35;
     const bottom = Math.max(...allPositions, 130) + 58;
-    // The demo keeps one fixed-height treble staff even for simultaneous notes.
-    elements.staff.setAttribute("viewBox", demoRunning
-        ? "0 -8 800 214"
-        : `0 ${top} 800 ${bottom - top}`);
+    elements.staff.setAttribute("viewBox", `0 ${top} 800 ${bottom - top}`);
     elements.staff.replaceChildren();
 
     for (const staff of baselines) {
@@ -613,7 +629,7 @@ function drawStaff(midi = null) {
     addSvgText(710, Math.min(...allPositions, 45) - 16, keySignatureLabel(keyName), 12, 800);
 
     if (midis.length === 0) {
-        if (testActive && !answered) {
+        if (showHint) {
             addSvgText(400, baselines.at(-1).bottomY + 31, t("staffHidden"), 12, 500);
         }
         return;
@@ -644,14 +660,15 @@ function drawStaff(midi = null) {
 
         for (const item of group) {
             const keyAccidental = keySignature(fifths)[item.note.letter];
-            if (keyAccidental !== item.note.accidental) {
+            const sharedStep = group.some((other) => other !== item && other.noteIndex === item.noteIndex);
+            if (sharedStep || keyAccidental !== item.note.accidental) {
                 const accidental = item.note.accidental === 1 ? "#" : item.note.accidental === -1 ? "b" : "n";
-                accidentalItems.push({ y: item.y, text: accidental, staff });
+                accidentalItems.push({ y: item.y, text: accidental, staff, x: item.x });
             }
         }
     }
 
-    accidentalItems.sort((a, b) => a.y - b.y);
+    accidentalItems.sort((a, b) => a.y - b.y || a.x - b.x);
     const occupiedColumns = [];
     for (const item of accidentalItems) {
         let column = 0;
@@ -659,7 +676,7 @@ function drawStaff(midi = null) {
             column += 1;
         }
         occupiedColumns[column] = item.y;
-        addSvgText(baseX - 29 - column * 23, item.y + 6, item.text, 20, 800);
+        addSvgText(Math.min(baseX, item.x) - 29 - column * 23, item.y + 6, item.text, 20, 800);
     }
 
     for (const item of noteRecords) {
@@ -670,31 +687,24 @@ function drawStaff(midi = null) {
 
     for (const staff of baselines) {
         const group = noteRecords.filter((item) => item.staff === staff);
-        if (group.length === 0) {
-            continue;
-        }
+        if (group.length === 0) continue;
         const lowest = group[0];
         const highest = group.at(-1);
         const middleIndex = lowest.geometry.bottomIndex + 4;
-        if (highest.noteIndex < middleIndex) {
-            const from = group.reduce((a, b) => a.x > b.x ? a : b);
-            elements.staff.appendChild(svgElement("line", {
-                x1: from.x + 10, y1: from.y,
-                x2: from.x + 10, y2: from.y - 48,
-                stroke: "#111827", "stroke-width": 2
-            }));
-        } else {
-            const from = group.reduce((a, b) => a.x < b.x ? a : b);
-            elements.staff.appendChild(svgElement("line", {
-                x1: from.x - 10, y1: from.y,
-                x2: from.x - 10, y2: from.y + 48,
-                stroke: "#111827", "stroke-width": 2
-            }));
-        }
+        const upward = lowest.noteIndex < middleIndex;
+        const stemX = upward ? Math.max(...group.map((item) => item.x)) + 10
+            : Math.min(...group.map((item) => item.x)) - 10;
+        elements.staff.appendChild(svgElement("line", {
+            x1: stemX,
+            y1: upward ? lowest.y : highest.y,
+            x2: stemX,
+            y2: upward ? highest.y - 48 : lowest.y + 48,
+            stroke: "#111827", "stroke-width": 2
+        }));
     }
 
     const names = midis.map((pitch) => spelledNoteName(pitch, fifths)).join("  ");
-    addSvgText(400, demoRunning ? 191 : bottom - 12, names, 13, 800);
+    addSvgText(400, bottom - 12, names, 13, 800);
 }
 
 function drawKeySignatureAt(clef, fifths, bottomY) {
@@ -914,9 +924,7 @@ function drawKeyboard() {
         keyElements.set(midi, key);
     });
 
-    window.setTimeout(() => {
-        elements.keyboardScroller.scrollLeft = 0;
-    }, 0);
+    elements.keyboardScroller.scrollLeft = 0;
 }
 
 function setControlsEnabled(enabled) {
@@ -943,28 +951,20 @@ function releaseAllKeys() {
     }
 }
 
+const masterGain = audioContext.createGain();
+masterGain.connect(audioContext.destination);
+const pendingVoices = new Set();
+
 function playFreeVoice(midi) {
-    const now = audioContext.currentTime;
-    const gain = audioContext.createGain();
-    gain.gain.value = 1;
-    gain.connect(audioContext.destination);
-    player.queueWaveTable(audioContext, gain, pianoPreset, 0, midi, 8, 0.76);
-    activeVoices.set(midi, { gain, startedAt: now });
+    releaseVoice(midi);
+    const envelope = player.queueWaveTable(audioContext, masterGain, pianoPreset, 0, midi, 8, 0.76);
+    if (envelope) activeVoices.set(midi, envelope);
 }
 
 function releaseVoice(midi) {
     const voice = activeVoices.get(midi);
-    if (!voice) {
-        return;
-    }
-    const { gain, startedAt } = voice;
-    const now = audioContext.currentTime;
-    const end = Math.max(now, startedAt + 1.20);
-    gain.gain.cancelScheduledValues(now);
-    gain.gain.setValueAtTime(gain.gain.value, now);
-    gain.gain.setValueAtTime(gain.gain.value, end);
-    gain.gain.linearRampToValueAtTime(0, end + 0.12);
-    window.setTimeout(() => gain.disconnect(), Math.max(0, (end - now) * 1000) + 250);
+    if (!voice) return;
+    voice.cancel();
     activeVoices.delete(midi);
 }
 
@@ -982,26 +982,38 @@ function releasePointer(pointerId) {
     }
 }
 
+function renderNotes(midis, options = {}) {
+    const unique = [...new Set(midis)].sort((a, b) => a - b);
+    resetKeyboardColors();
+    unique.forEach((midi) => keyElements.get(midi)?.classList.add("active"));
+    if (unique.length) {
+        const fifths = KEY_FIFTHS[keyName];
+        const names = unique.length === 1
+            ? `${solfegeName(unique[0], fifths)} / ${spelledNoteName(unique[0], fifths)}`
+            : unique.map((midi) => spelledNoteName(midi, fifths)).join("  ");
+        setAnswer("raw", { text: names });
+    } else {
+        setAnswer(options.keepStatus ? "raw" : "free", options.keepStatus ? { text: "" } : {});
+    }
+    drawStaff(unique);
+    if (!options.keepStatus) {
+        setStatus(unique.length ? "held" : "free", { count: unique.length });
+    }
+}
+
 function renderHeldNotes() {
     window.clearTimeout(freeDisplayTimeout);
-    resetKeyboardColors();
-    const midis = [...new Set(activePointers.values())].sort((a, b) => a - b);
-    midis.forEach((midi) => keyElements.get(midi)?.classList.add("active"));
+    const midis = [...activePointers.values()];
     if (midis.length === 0) {
+        resetKeyboardColors();
         freeDisplayTimeout = window.setTimeout(() => {
             if (!testActive && !demoRunning && activePointers.size === 0) {
-                setStatus("free");
-                setAnswer("free");
-                drawStaff();
+                renderNotes([]);
             }
-        }, 1100);
+        }, 250);
         return;
     }
-    const fifths = KEY_FIFTHS[keyName];
-    setStatus("held", { count: midis.length });
-    const labels = midis.map((midi) => `${solfegeName(midi, fifths)} / ${spelledNoteName(midi, fifths)}`);
-    setAnswer("raw", { text: labels.join("   ") });
-    drawStaff(midis);
+    renderNotes(midis);
 }
 
 async function playTone(midi) {
@@ -1033,7 +1045,7 @@ function newQuestion() {
 
     testActive = true;
     answered = false;
-    drawStaff();
+    drawStaff(null, true);
     currentMidi = Math.floor(
         Math.random() * (maxMidi - minMidi + 1)
     ) + minMidi;
@@ -1069,12 +1081,15 @@ function stopTest() {
 
 function freePlay(midi, pointerId) {
     activePointers.set(pointerId, midi);
-    if (![...activePointers.entries()].some(([id, note]) => id !== pointerId && note === midi)) {
+    if (!activeVoices.has(midi) && !pendingVoices.has(midi)) {
+        pendingVoices.add(midi);
         ensureAudio().then(() => {
-            if ([...activePointers.values()].includes(midi)) {
+            pendingVoices.delete(midi);
+            if (!testActive && !demoRunning && [...activePointers.values()].includes(midi)
+                && !activeVoices.has(midi)) {
                 playFreeVoice(midi);
             }
-        });
+        }).catch(() => pendingVoices.delete(midi));
     }
     renderHeldNotes();
 }
@@ -1185,6 +1200,10 @@ function populateSelectors() {
 function initializeAudio() {
     setStatus("loading");
     setControlsEnabled(false);
+    if (player === null || !pianoPreset) {
+        setStatus("audioError");
+        return;
+    }
 
     player.loader.decodeAfterLoading(
         audioContext,
@@ -1206,18 +1225,21 @@ function registerServiceWorker() {
     }
 }
 
-elements.applyButton.addEventListener("click", applySettings);
-elements.playButton.addEventListener("click", newQuestion);
-elements.replayButton.addEventListener("click", replay);
-elements.nextButton.addEventListener("click", newQuestion);
-elements.stopButton.addEventListener("click", stopTest);
-document.getElementById("languageSelect").addEventListener("change", (event) => setLanguage(event.target.value));
+const unlessDemo = (callback) => (event) => {
+    if (!demoRunning) callback(event);
+};
+
+elements.applyButton.addEventListener("click", unlessDemo(applySettings));
+elements.playButton.addEventListener("click", unlessDemo(newQuestion));
+elements.replayButton.addEventListener("click", unlessDemo(replay));
+elements.nextButton.addEventListener("click", unlessDemo(newQuestion));
+elements.stopButton.addEventListener("click", unlessDemo(stopTest));
+document.getElementById("languageSelect").addEventListener("change", unlessDemo((event) => setLanguage(event.target.value)));
 document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
         releaseAllKeys();
         if (demoRunning) {
-            demoCancelled = true;
-            player.cancelQueue(audioContext);
+            cancelDemo();
         }
     }
 });
@@ -1263,16 +1285,36 @@ function midiFromName(name) {
 
 function sleep(ms) {
     return new Promise((resolve) => {
-        window.setTimeout(resolve, ms);
+        const finish = () => {
+            window.clearTimeout(timer);
+            demoWaits.delete(finish);
+            resolve();
+        };
+        const timer = window.setTimeout(finish, ms);
+        demoWaits.add(finish);
     });
+}
+
+function cancelDemo() {
+    demoCancelled = true;
+    if (player) player.cancelQueue(audioContext);
+    if (demoTimer !== null) {
+        window.clearInterval(demoTimer);
+        demoTimer = null;
+    }
+    if (demoResolve !== null) {
+        const resolve = demoResolve;
+        demoResolve = null;
+        resolve();
+    }
+    for (const finish of [...demoWaits]) finish();
 }
 
 function createDemoInterface() {
     const button = document.getElementById("demoButton");
     button.addEventListener("click", () => {
         if (demoRunning) {
-            demoCancelled = true;
-            player.cancelQueue(audioContext);
+            cancelDemo();
         } else {
             runDemo();
         }
@@ -1287,6 +1329,7 @@ function demoPointer() {
 }
 
 async function pointToElement(element, tap = true) {
+    element.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
     const pointer = demoPointer();
     const rect = element.getBoundingClientRect();
 
@@ -1309,14 +1352,9 @@ function hideDemoPointer() {
 }
 
 function setDemoControlsLocked(locked) {
-    document.querySelectorAll("button, select").forEach((element) => {
-        element.disabled = locked;
-    });
-
-    const demoButton = document.getElementById("demoButton");
-
-    demoButton.disabled = !ready;
-    demoButton.textContent = locked ? t("stopDemo") : t("demo");
+    const button = document.getElementById("demoButton");
+    button.disabled = !ready;
+    button.textContent = locked ? t("stopDemo") : t("demo");
 }
 
 function startDemoQuestion(midi) {
@@ -1324,7 +1362,7 @@ function startDemoQuestion(midi) {
     testActive = true;
     currentMidi = midi;
     answered = false;
-    drawStaff();
+    drawStaff(null, true);
 
     setStatus("listen");
     setAnswer("choose");
@@ -1338,125 +1376,79 @@ async function demoAnswer(selectedMidi) {
     answer(selectedMidi);
 }
 
-// Schubert, Die Forelle D.550: opening vocal melody, first two phrases.
-// Source: Mutopia Project, melody.ly, first sung passage (bars 6-14).
-// https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=502
-// Melody pitch and rhythmic values follow the public-domain score; the quiet
-// chordal accompaniment below is a simplified demonstration arrangement.
-// 2/4 meter. The first 0.5-beat measure is an anacrusis (pickup).
-const DEMO_BARS = [
-    "Ab4:0.5",
-    "Db5:0.5 Db5:0.5 F5:0.5 F5:0.5",
-    "Db5:1 Ab4:0.5 Ab4:0.5",
-    "Ab4:0.75 Ab4:0.25 Eb5:0.25 Db5:0.25 C5:0.25 Bb4:0.25",
-    "Ab4:1 r:0.5 Ab4:0.5",
-    "Db5:0.5 Db5:0.5 F5:0.5 F5:0.5",
-    "Db5:1 Ab4:0.5 Db5:0.5",
-    "C5:0.5 Bb4:0.25 C5:0.25 Db5:0.5 G4:0.5",
-    "Ab4:1 r:1"
-];
+// Schubert: Die Forelle D.550, first vocal phrase with original piano right hand.
+// Score data are generated from the public-domain Mutopia LilyPond transcription.
+const DEMO_TEMPO = 80;
+const DEMO_GAP_SECONDS = 0.030;
+const DEMO_MELODY_VOLUME = 0.72;
+const DEMO_UPPER_VOLUME = 0.32;
+const DEMO_ACCENT_VOLUME = 0.46;
 
-// Low and soft two-hand accompaniment, not the original piano part.
-// Keep every sounding note comfortably visible on one treble staff.
-const DEMO_CHORDS = {
-    Db: ["Db4", "F4", "Ab4"],
-    Ab: ["Eb4", "Ab4", "C5"],
-    Gb: ["Db4", "Gb4", "Bb4"]
-};
-const DEMO_HARMONIES = ["Db", "Db", "Ab", "Db", "Db", "Gb", "Ab", "Db"];
-
-function buildDemoScore() {
-    const events = [];
-    const barStarts = [];
-    let cursor = 0;
-    const add = (note, start, beats, volume, part) => {
-        if (note === "r") return;
-        events.push({
-            midi: midiFromName(note), start, end: start + beats,
-            beats, volume, part
-        });
-    };
-
-    DEMO_BARS.forEach((bar, index) => {
-        barStarts.push(cursor);
-        let localBeat = 0;
-        for (const token of bar.split(" ")) {
-            const [note, durationText] = token.split(":");
-            const duration = Number(durationText);
-            if (!(duration > 0)) throw new Error("Invalid demo rhythm: " + token);
-            if (note !== "r") {
-                const isFinal = index === DEMO_BARS.length - 1;
-                const isFast = duration <= 0.25;
-                const articulation = isFinal ? 1 : (isFast ? 0.95 : 0.90);
-                const phraseDownbeat = localBeat === 0;
-                add(note, cursor + localBeat, duration * articulation,
-                    phraseDownbeat ? 0.79 : 0.72, "melody");
-            }
-            localBeat += duration;
+function prepareDemoEvents(data) {
+    const melody = data.events.filter((event) => event.part === "melody");
+    const result = melody.map((event) => ({ ...event, volume: DEMO_MELODY_VOLUME }));
+    for (const event of data.events.filter((item) => item.part === "upper")) {
+        const volume = event.offset === data.ticksPerQuarter ? DEMO_ACCENT_VOLUME : DEMO_UPPER_VOLUME;
+        const sameStart = result.find((item) => item.midi === event.midi && item.start === event.start);
+        const melodyOverlap = melody.some((item) => (
+            item.midi === event.midi && item.start < event.end && event.start < item.end
+        ));
+        if (sameStart) {
+            sameStart.end = Math.max(sameStart.end, event.end);
+            sameStart.volume = Math.max(sameStart.volume, volume);
+        } else if (!melodyOverlap) {
+            result.push({ ...event, volume });
         }
-        const expected = index === 0 ? 0.5 : 2;
-        if (Math.abs(localBeat - expected) > 0.00001) {
-            throw new Error(`Invalid time signature in demo bar ${index + 1}`);
-        }
-        cursor += localBeat;
-
-        if (index > 0) {
-            const harmony = DEMO_HARMONIES[index - 1];
-            const chord = DEMO_CHORDS[harmony];
-            if (!chord) throw new Error("Missing demo harmony: " + harmony);
-            const barStart = barStarts[index];
-            if (index === DEMO_BARS.length - 1) {
-                // Last bar holds a soft tonic chord and releases before the UI ends.
-                chord.forEach((note, voice) => {
-                    add(note, barStart, 1.45, voice === 0 ? 0.19 : 0.12, "harmony");
-                });
-            } else {
-                // Flowing bass + light off-beat dyads, with no made-up extra melody.
-                add(chord[0], barStart, 0.70, 0.17, "bass");
-                add(chord[1], barStart + 0.5, 0.43, 0.10, "harmony");
-                add(chord[2], barStart + 0.5, 0.43, 0.10, "harmony");
-                add(chord[0], barStart + 1, 0.57, 0.14, "bass");
-                if (index !== 4) {
-                    add(chord[1], barStart + 1.5, 0.40, 0.09, "harmony");
-                    add(chord[2], barStart + 1.5, 0.40, 0.09, "harmony");
-                }
-            }
-        }
-    });
-
-    events.sort((a, b) => a.start - b.start || a.midi - b.midi);
-    return { events, totalBeats: cursor, barStarts };
-}
-
-const DEMO_SCORE = buildDemoScore();
-
-// Jump through the existing octave shortcuts; sound scheduling never waits.
-const DEMO_OCTAVE_CUES = [
-    [0, 60], [0.5, 72], [4.5, 60], [6.5, 72], [10.5, 60], [12.5, 72]
-];
-
-function demoOctaveForBeat(beatIndex) {
-    let octaveMidi = DEMO_OCTAVE_CUES[0][1];
-    for (const [startBeat, midi] of DEMO_OCTAVE_CUES) {
-        if (beatIndex >= startBeat) octaveMidi = midi;
-        else break;
     }
-    return octaveMidi;
+    return result.sort((a, b) => a.start - b.start || a.midi - b.midi);
 }
+
+const DEMO_EVENTS = prepareDemoEvents(window.DEMO_SCORE_DATA);
+
+function buildDemoOctaveCues(data) {
+    const melody = data.events.filter((event) => event.part === "melody");
+    const cues = [];
+    let previousOctave = null;
+    const origin = (6 - 1) * 2 * data.ticksPerQuarter + 1.5 * data.ticksPerQuarter;
+    const quarter = data.ticksPerQuarter;
+    for (let bar = 6; bar <= 14; bar += 1) {
+        const absoluteStart = (bar - 1) * 2 * quarter;
+        const localStart = Math.max(0, absoluteStart - origin);
+        const localEnd = (absoluteStart + 2 * quarter) - origin;
+        const weights = new Map();
+        for (const note of melody) {
+            const overlap = Math.max(0, Math.min(note.end, localEnd) - Math.max(note.start, localStart));
+            if (!overlap) continue;
+            const octave = Math.floor(note.midi / 12) * 12;
+            weights.set(octave, (weights.get(octave) || 0) + overlap);
+        }
+        let octave = previousOctave;
+        let maximum = weights.get(previousOctave) || 0;
+        for (const [candidate, weight] of weights) {
+            if (weight > maximum) {
+                octave = candidate;
+                maximum = weight;
+            }
+        }
+        if (octave !== null && octave !== previousOctave) {
+            cues.push({ tick: localStart, midi: octave });
+            previousOctave = octave;
+        }
+    }
+    return cues;
+}
+
+const DEMO_OCTAVE_CUES = buildDemoOctaveCues(window.DEMO_SCORE_DATA);
 
 function demoJumpOctave(midi) {
     if (midi === null || midi === demoSelectedOctave) return;
-
-    const button = [...document.querySelectorAll(".octave-jump")].find((item) => {
-        return Number(item.dataset.midi) === midi;
-    });
+    const button = [...document.querySelectorAll(".octave-jump")].find((element) => (
+        Number(element.dataset.midi) === midi
+    ));
     if (!button) return;
-
     demoSelectedOctave = midi;
-    showOctave(midi, "auto");
+    showOctave(midi, "instant");
     highlightOctave(midi);
-
-    // Visualize the existing quick-key selection without delaying playback.
     const pointer = demoPointer();
     const rect = button.getBoundingClientRect();
     pointer.style.left = `${rect.left + rect.width / 2}px`;
@@ -1465,47 +1457,7 @@ function demoJumpOctave(midi) {
     window.clearTimeout(demoOctaveTapTimeout);
     demoOctaveTapTimeout = window.setTimeout(() => {
         pointer.classList.remove("visible", "tap");
-    }, 160);
-}
-
-function renderDemoChord(notes, beat) {
-    const midis = [...new Set(notes.map((event) => event.midi))].sort((a, b) => a - b);
-    resetKeyboardColors();
-    midis.forEach((midi) => keyElements.get(midi)?.classList.add("active"));
-    drawStaff(midis);
-
-    const view = elements.keyboardScroller.getBoundingClientRect();
-    const visible = midis.map((midi) => {
-        return keyElements.get(midi)?.getBoundingClientRect();
-    }).filter((rect) => {
-        return rect && rect.right > view.left + 6 && rect.left < view.right - 6;
-    });
-    const pointers = [...document.querySelectorAll(".demo-music-pointer")];
-    for (let i = 0; i < pointers.length; i += 1) {
-        const pointer = pointers[i];
-        const rect = visible[i];
-        if (!rect) {
-            pointer.classList.remove("visible");
-            continue;
-        }
-        const left = Math.max(rect.left, view.left);
-        const right = Math.min(rect.right, view.right);
-        pointer.style.left = `${(left + right) / 2}px`;
-        pointer.style.top = `${rect.top + Math.min(rect.height * 0.7, 150)}px`;
-        pointer.classList.add("visible");
-    }
-
-    const fifths = KEY_FIFTHS[keyName];
-    const displayed = midis.map((midi) => spelledNoteName(midi, fifths)).join("  ");
-    let barIndex = 0;
-    for (let index = 1; index < DEMO_SCORE.barStarts.length; index += 1) {
-        if (beat >= DEMO_SCORE.barStarts[index]) barIndex = index;
-        else break;
-    }
-    setStatus("raw", {
-        text: `${t("demoEnd")} · ${barIndex + 1}/${DEMO_BARS.length}`
-    });
-    setAnswer("raw", { text: displayed || t("demoEnd") });
+    }, 145);
 }
 
 function buildDemoMusicPointers() {
@@ -1513,7 +1465,6 @@ function buildDemoMusicPointers() {
     for (let i = 0; i < 5; i += 1) {
         const pointer = document.createElement("div");
         pointer.className = "demo-music-pointer";
-        pointer.style.setProperty("--pointer-index", String(i));
         document.body.appendChild(pointer);
     }
 }
@@ -1524,88 +1475,142 @@ function hideDemoMusicPointers() {
     });
 }
 
+function renderDemoChord(events) {
+    const midis = [...new Set(events.map((event) => event.midi))].sort((a, b) => a - b);
+    renderNotes(midis, { keepStatus: true });
+    const view = elements.keyboardScroller.getBoundingClientRect();
+    const visible = midis.map((midi) => keyElements.get(midi)?.getBoundingClientRect()).filter(
+        (rect) => rect && rect.right > view.left + 6 && rect.left < view.right - 6
+    );
+    const pointers = [...document.querySelectorAll(".demo-music-pointer")];
+    pointers.forEach((pointer, index) => {
+        const rect = visible[index];
+        if (!rect) {
+            pointer.classList.remove("visible");
+            return;
+        }
+        pointer.style.left = `${(Math.max(rect.left, view.left) + Math.min(rect.right, view.right)) / 2}px`;
+        pointer.style.top = `${rect.top + Math.min(rect.height * 0.7, 150)}px`;
+        pointer.classList.add("visible");
+    });
+}
+
 async function playForelleDemo() {
     await ensureAudio();
+    if (demoCancelled) return;
     player.cancelQueue(audioContext);
     buildDemoMusicPointers();
-
-    const secondsPerBeat = 60 / 112;
-    const startTime = audioContext.currentTime + 0.22;
-    const { events, totalBeats } = DEMO_SCORE;
+    setStatus("demoTitle");
+    const data = window.DEMO_SCORE_DATA;
+    const secondsPerTick = (60 / DEMO_TEMPO) / data.ticksPerQuarter;
+    const startTime = audioContext.currentTime + 0.18;
+    const events = DEMO_EVENTS;
+    const finalTick = Math.max(...events.map((event) => event.end));
     let next = 0;
-    let previousSignature = "";
-    let previousBar = -1;
-    let previousOctaveBeat = -1;
+    let nextCue = 0;
+    let previousSignature = null;
 
     await new Promise((resolve) => {
-        const timer = window.setInterval(() => {
+        demoResolve = resolve;
+        demoTimer = window.setInterval(() => {
             if (demoCancelled || document.hidden) {
-                window.clearInterval(timer);
-                player.cancelQueue(audioContext);
-                resolve();
+                cancelDemo();
                 return;
             }
-
             const now = audioContext.currentTime;
-            const beat = Math.max(0, (now - startTime) / secondsPerBeat);
-            const schedulingHorizon = now + 0.24;
-
-            while (
-                next < events.length &&
-                startTime + events[next].start * secondsPerBeat < schedulingHorizon
-            ) {
+            const tick = Math.max(0, (now - startTime) / secondsPerTick);
+            const horizon = now + 0.20;
+            while (next < events.length && startTime + events[next].start * secondsPerTick < horizon) {
                 const event = events[next++];
-                const scheduledStart = startTime + event.start * secondsPerBeat;
+                const duration = Math.max(
+                    0.05,
+                    (event.end - event.start) * secondsPerTick - DEMO_GAP_SECONDS
+                );
                 player.queueWaveTable(
-                    audioContext,
-                    audioContext.destination,
-                    pianoPreset,
-                    scheduledStart,
-                    event.midi,
-                    event.beats * secondsPerBeat,
-                    event.volume
+                    audioContext, audioContext.destination, pianoPreset,
+                    startTime + event.start * secondsPerTick,
+                    event.midi, duration, event.volume
                 );
             }
-
-            const current = events.filter((event) => {
-                return event.start <= beat && beat < event.end;
-            });
-            const octaveBeat = Math.floor(beat);
-            if (octaveBeat !== previousOctaveBeat && octaveBeat < totalBeats) {
-                demoJumpOctave(demoOctaveForBeat(octaveBeat));
-                previousOctaveBeat = octaveBeat;
+            while (nextCue < DEMO_OCTAVE_CUES.length && tick >= DEMO_OCTAVE_CUES[nextCue].tick) {
+                demoJumpOctave(DEMO_OCTAVE_CUES[nextCue].midi);
+                nextCue += 1;
             }
-            const signature = current.map((event) => event.midi).sort((a, b) => a - b).join(",");
-            const bar = DEMO_SCORE.barStarts.reduce((n, x) => beat >= x ? n + 1 : n, 0);
-            if (signature !== previousSignature || bar !== previousBar) {
-                renderDemoChord(current, beat);
+            const sounding = events.filter((event) => event.start <= tick && tick < event.end);
+            const signature = sounding.map((event) => event.midi).sort((a, b) => a - b).join(",");
+            if (signature !== previousSignature) {
+                renderDemoChord(sounding);
                 previousSignature = signature;
-                previousBar = bar;
             }
-
-            if (beat >= totalBeats + 0.65) {
-                window.clearInterval(timer);
+            if (tick >= finalTick + 0.35 * data.ticksPerQuarter) {
+                window.clearInterval(demoTimer);
+                demoTimer = null;
+                demoResolve = null;
                 resolve();
             }
-        }, 30);
+        }, 25);
     });
-
     hideDemoMusicPointers();
     resetKeyboardColors();
+}
 
-    if (!demoCancelled) {
-        setStatus("demoEnd");
-        setAnswer("title");
-        drawStaff();
-        await sleep(880);
+
+function captureDemoSnapshot() {
+    return {
+        applied: { minMidi, maxMidi, keyName, clefMode },
+        form: {
+            startNote: elements.startNote.value,
+            endNote: elements.endNote.value,
+            keySelect: elements.keySelect.value,
+            clefSelect: elements.clefSelect.value
+        },
+        state: { testActive, answered, currentMidi },
+        status: { ...statusMessage },
+        answer: { ...answerMessage },
+        keyClasses: [...keyElements.entries()].map(([midi, element]) => ({
+            midi,
+            state: ["correct", "wrong"].filter((name) => element.classList.contains(name))
+        })),
+        keyboardScrollLeft: elements.keyboardScroller.scrollLeft,
+        pageScrollY: window.scrollY
+    };
+}
+
+function restoreDemoSnapshot(snapshot) {
+    const { applied, form, state } = snapshot;
+    elements.startNote.value = String(applied.minMidi);
+    elements.endNote.value = String(applied.maxMidi);
+    elements.keySelect.value = applied.keyName;
+    elements.clefSelect.value = applied.clefMode;
+    applySettings();
+
+    elements.startNote.value = form.startNote;
+    elements.endNote.value = form.endNote;
+    elements.keySelect.value = form.keySelect;
+    elements.clefSelect.value = form.clefSelect;
+    testActive = state.testActive;
+    answered = state.answered;
+    currentMidi = state.currentMidi;
+
+    resetKeyboardColors();
+    snapshot.keyClasses.forEach(({ midi, state: classNames }) => {
+        const key = keyElements.get(midi);
+        if (key) classNames.forEach((name) => key.classList.add(name));
+    });
+    if (testActive && currentMidi !== null && answered) {
+        drawStaff(currentMidi);
+    } else {
+        drawStaff(null, testActive && !answered);
     }
+    setStatus(snapshot.status.key, snapshot.status.args);
+    setAnswer(snapshot.answer.key, snapshot.answer.args);
+    elements.keyboardScroller.scrollTo({ left: snapshot.keyboardScrollLeft, behavior: "instant" });
+    window.scrollTo({ top: snapshot.pageScrollY, behavior: "instant" });
 }
 
 async function runDemo() {
-    if (!ready || demoRunning) {
-        return;
-    }
-
+    if (!ready || demoRunning) return;
+    const snapshot = captureDemoSnapshot();
     demoRunning = true;
     demoCancelled = false;
     document.querySelector(".app-shell").classList.add("demo-running");
@@ -1613,8 +1618,9 @@ async function runDemo() {
 
     try {
         await ensureAudio();
+        if (demoCancelled) return;
         player.cancelQueue(audioContext);
-
+        releaseAllKeys();
         elements.startNote.value = String(midiFromName("C4"));
         elements.endNote.value = String(midiFromName("B4"));
         elements.keySelect.value = "C major";
@@ -1623,73 +1629,74 @@ async function runDemo() {
         await pointToElement(elements.applyButton);
         if (demoCancelled) return;
         applySettings();
-        await sleep(470);
+        await sleep(400);
 
         if (demoCancelled) return;
         await pointToElement(elements.playButton);
         if (demoCancelled) return;
         startDemoQuestion(midiFromName("F#4"));
-        await sleep(920);
+        await sleep(750);
 
         if (demoCancelled) return;
         await demoAnswer(midiFromName("G4"));
-        await sleep(850);
+        if (demoCancelled) return;
+        await sleep(750);
 
         if (demoCancelled) return;
         await pointToElement(elements.nextButton);
         if (demoCancelled) return;
         startDemoQuestion(midiFromName("A4"));
-        await sleep(880);
+        await sleep(720);
 
         if (demoCancelled) return;
         await demoAnswer(midiFromName("A4"));
-        await sleep(850);
+        if (demoCancelled) return;
+        await sleep(720);
 
         if (demoCancelled) return;
         await pointToElement(elements.stopButton);
         if (demoCancelled) return;
         stopTest();
-        await sleep(520);
+        await sleep(360);
 
         if (demoCancelled) return;
-        elements.startNote.value = String(midiFromName("C4"));
+        elements.startNote.value = String(midiFromName("C3"));
         elements.endNote.value = String(midiFromName("B5"));
         elements.keySelect.value = "Db major";
         elements.clefSelect.value = "Treble";
-
         await pointToElement(elements.applyButton);
         if (demoCancelled) return;
         applySettings();
-        await sleep(450);
+        await sleep(350);
 
+        if (demoCancelled) return;
         hideDemoPointer();
         setStatus("demoFree");
-        setAnswer("raw", { text: t("demoEnd") });
-        await sleep(380);
+        setAnswer("raw", { text: t("demoTitle") });
+        await sleep(320);
         if (demoCancelled) return;
-
-        document.querySelector(".app-shell").classList.add("demo-music");
+        document.querySelector(".keyboard-card").scrollIntoView({ block: "end", behavior: "instant" });
         await playForelleDemo();
     } finally {
-        const wasCancelled = demoCancelled;
         hideDemoPointer();
         hideDemoMusicPointers();
         window.clearTimeout(demoOctaveTapTimeout);
+        if (demoTimer !== null) {
+            window.clearInterval(demoTimer);
+            demoTimer = null;
+        }
+        demoResolve = null;
         player.cancelQueue(audioContext);
         demoSelectedOctave = null;
         demoRunning = false;
         demoCancelled = false;
-        document.querySelector(".app-shell").classList.remove("demo-running", "demo-music");
-        testActive = false;
-        currentMidi = null;
-        answered = false;
         releaseAllKeys();
-        resetKeyboardColors();
-        drawStaff();
+        window.clearTimeout(freeDisplayTimeout);
+        document.querySelector(".app-shell").classList.remove("demo-running", "demo-music");
+        restoreDemoSnapshot(snapshot);
         setDemoControlsLocked(false);
-        setStatus(wasCancelled ? "stopped" : "demoEnd");
-        setAnswer("free");
     }
 }
+
 
 createDemoInterface();

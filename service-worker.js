@@ -1,6 +1,6 @@
-const CACHE_NAME = "pitch-trainer-mobile-v10";
+const CACHE_NAME = "pitch-trainer-mobile-v11";
 const ASSETS = [
-    "./", "./index.html", "./styles.css", "./app.js", "./i18n.js",
+    "./", "./index.html", "./styles.css", "./app.js", "./i18n.js", "./demo-score.js",
     "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"
 ];
 const EXTERNAL = [
@@ -11,10 +11,10 @@ const EXTERNAL = [
 self.addEventListener("install", (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then(async (cache) => {
-            await cache.addAll(ASSETS);
+            await cache.addAll(ASSETS.map((url) => new Request(url, { cache: "reload" })));
             for (const url of EXTERNAL) {
                 const request = new Request(url, { mode: "no-cors" });
-                const response = await fetch(request);
+                const response = await fetch(request, { cache: "reload" });
                 await cache.put(request, response);
             }
         })

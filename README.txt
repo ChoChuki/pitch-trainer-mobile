@@ -1,21 +1,35 @@
-Pitch Trainer Mobile v10
+Pitch Trainer Mobile v11
 
-Changes since v9:
-- Die Forelle D.550 (Schubert), recognizable opening vocal melody only.
-- Melody pitches and rhythms copied from the Mutopia Project public-domain
-  LilyPond score, bars 6-14 (opening sung passage). The chordal backing is
-  a simplified original demo arrangement, not a transcription of Schubert's
-  keyboard part. Reference: https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=502
-- 2/4 meter, 112 BPM, approximately 9 seconds of music plus short decay.
-- Remove the 'after answering' staff hint whenever the app is not waiting
-  for an unanswered pitch-identification question.
-- Demo remains polyphonic with one fixed-height treble staff and the same
-  octave shortcut behavior as the normal app.
-- All six languages have been updated. Normal pitch tests and free play unchanged.
+What's changed from v10
+- Demo restores the applied settings, any un-applied selector edits, note/staff
+  display, keyboard scroll position and page scroll, both after completion and
+  cancellation. The music title is never left on the idle screen.
+- Demo now plays a short Schubert Die Forelle vocal excerpt and the right-hand
+  notes transcribed from the Mutopia public-domain LilyPond score.
+- Demo music is stored in demo-score.js with source bar/tick metadata.
+- Multi-note duplicates from voice + accompaniment are de-duplicated.
+- Staff layout is determined by selected note range, not pressed notes.
+- Demo stop is immediate; normal buttons do not appear disabled in Demo.
+- Free-play key release is individually handled via WebAudioFont envelopes.
+- Service worker cache version bumped and cache installation bypasses HTTP cache.
 
-To update GitHub Pages, replace exactly these three files in the repository root:
+Music source
+https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=502
+Generated via tools/build_demo_score.py (a manual transcription from LilyPond).
+MIDI cross-verification of the transcription is NOT included in the runtime,
+and has NOT been completed in this release. Do not claim it has been completed.
+
+GitHub Pages
+Upload these 6 files to the repository root, replacing existing files:
     app.js
+    demo-score.js (new)
     i18n.js
+    index.html
+    styles.css
     service-worker.js
+No external app libraries have changed; existing icons/manifest stay the same.
+Refresh the GitHub Pages page after deployment, then reopen installed PWA.
 
-Then commit and reload after GitHub Pages publishes the files.
+Local test
+    python -m http.server 8000
+Open http://localhost:8000
