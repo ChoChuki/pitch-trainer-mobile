@@ -613,7 +613,9 @@ function drawStaff(midi = null) {
     addSvgText(710, Math.min(...allPositions, 45) - 16, keySignatureLabel(keyName), 12, 800);
 
     if (midis.length === 0) {
-        addSvgText(400, baselines.at(-1).bottomY + 31, t("staffHidden"), 12, 500);
+        if (testActive && !answered) {
+            addSvgText(400, baselines.at(-1).bottomY + 31, t("staffHidden"), 12, 500);
+        }
         return;
     }
 
@@ -1028,13 +1030,13 @@ function newQuestion() {
     releaseAllKeys();
     window.clearTimeout(freeDisplayTimeout);
     resetKeyboardColors();
-    drawStaff();
 
     testActive = true;
+    answered = false;
+    drawStaff();
     currentMidi = Math.floor(
         Math.random() * (maxMidi - minMidi + 1)
     ) + minMidi;
-    answered = false;
 
     setStatus("listen");
     setAnswer("choose");
@@ -1319,11 +1321,10 @@ function setDemoControlsLocked(locked) {
 
 function startDemoQuestion(midi) {
     resetKeyboardColors();
-    drawStaff();
-
     testActive = true;
     currentMidi = midi;
     answered = false;
+    drawStaff();
 
     setStatus("listen");
     setAnswer("choose");
@@ -1337,113 +1338,101 @@ async function demoAnswer(selectedMidi) {
     answer(selectedMidi);
 }
 
-// An eight-bar C-major piano demonstration of Beethoven's Ode to Joy theme.
-// The melody follows the familiar tune, transposed up an octave so melody
-// and supporting two-handed chords fit on a single treble staff.
+// Schubert, Die Forelle D.550: opening vocal melody, first two phrases.
+// Source: Mutopia Project, melody.ly, first sung passage (bars 6-14).
+// https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=502
+// Melody pitch and rhythmic values follow the public-domain score; the quiet
+// chordal accompaniment below is a simplified demonstration arrangement.
+// 2/4 meter. The first 0.5-beat measure is an anacrusis (pickup).
 const DEMO_BARS = [
-    "E5:1 E5:1 F5:1 G5:1",
-    "G5:1 F5:1 E5:1 D5:1",
-    "C5:1 C5:1 D5:1 E5:1",
-    "E5:1 D5:1 D5:2",
-    "E5:1 E5:1 F5:1 G5:1",
-    "G5:1 F5:1 E5:1 D5:1",
-    "C5:1 C5:1 D5:1 E5:1",
-    "D5:1 C5:1 C5:2"
+    "Ab4:0.5",
+    "Db5:0.5 Db5:0.5 F5:0.5 F5:0.5",
+    "Db5:1 Ab4:0.5 Ab4:0.5",
+    "Ab4:0.75 Ab4:0.25 Eb5:0.25 Db5:0.25 C5:0.25 Bb4:0.25",
+    "Ab4:1 r:0.5 Ab4:0.5",
+    "Db5:0.5 Db5:0.5 F5:0.5 F5:0.5",
+    "Db5:1 Ab4:0.5 Db5:0.5",
+    "C5:0.5 Bb4:0.25 C5:0.25 Db5:0.5 G4:0.5",
+    "Ab4:1 r:1"
 ];
 
+// Low and soft two-hand accompaniment, not the original piano part.
+// Keep every sounding note comfortably visible on one treble staff.
 const DEMO_CHORDS = {
-    C: ["C4", "E4", "G4"],
-    G: ["G4", "B4", "D5"],
-    F: ["F4", "A4", "C5"],
-    Am: ["A4", "C5", "E5"]
+    Db: ["Db4", "F4", "Ab4"],
+    Ab: ["Eb4", "Ab4", "C5"],
+    Gb: ["Db4", "Gb4", "Bb4"]
 };
-
-const DEMO_HARMONIES = [
-    "C", "G", "C", "G", "C", "G", "F", "C"
-];
+const DEMO_HARMONIES = ["Db", "Db", "Ab", "Db", "Db", "Gb", "Ab", "Db"];
 
 function buildDemoScore() {
-    if (DEMO_BARS.length !== DEMO_HARMONIES.length) {
-        throw new Error("Demo melody and accompaniment counts differ.");
-    }
-
     const events = [];
-    const add = (name, start, beats, volume, part) => {
+    const barStarts = [];
+    let cursor = 0;
+    const add = (note, start, beats, volume, part) => {
+        if (note === "r") return;
         events.push({
-            midi: midiFromName(name),
-            start,
-            end: start + beats,
-            beats,
-            volume,
-            part
+            midi: midiFromName(note), start, end: start + beats,
+            beats, volume, part
         });
     };
 
     DEMO_BARS.forEach((bar, index) => {
-        let beatPosition = 0;
-        const start = index * 4;
-        const breathAfterBar = index === 1 || index === 3 || index === 5;
-        // Delay only the first attack of a new phrase; keep the tempo moving.
-        const entryDelay = index === 4 ? 0.16 : (index === 2 || index === 6 ? 0.06 : 0);
-
-        bar.split(" ").forEach((token) => {
-            const [name, length] = token.split(":");
-            const beats = Number(length);
-            const finalNoteInBar = beatPosition + beats === 4;
-            let soundingBeats = beats >= 2 ? beats * 0.91 : beats * 0.86;
-
-            // Give both halves of the tune audible punctuation at their ends.
-            if (breathAfterBar && finalNoteInBar) {
-                soundingBeats = beats - (index === 3 ? 0.48 : 0.32);
+        barStarts.push(cursor);
+        let localBeat = 0;
+        for (const token of bar.split(" ")) {
+            const [note, durationText] = token.split(":");
+            const duration = Number(durationText);
+            if (!(duration > 0)) throw new Error("Invalid demo rhythm: " + token);
+            if (note !== "r") {
+                const isFinal = index === DEMO_BARS.length - 1;
+                const isFast = duration <= 0.25;
+                const articulation = isFinal ? 1 : (isFast ? 0.95 : 0.90);
+                const phraseDownbeat = localBeat === 0;
+                add(note, cursor + localBeat, duration * articulation,
+                    phraseDownbeat ? 0.79 : 0.72, "melody");
             }
-            if (index === DEMO_BARS.length - 1 && finalNoteInBar) {
-                soundingBeats = 1.91;
-            }
-
-            const accent = beatPosition === 0 ? 0.86 : (beatPosition === 2 ? 0.81 : 0.77);
-            add(
-                name,
-                start + beatPosition + (beatPosition === 0 ? entryDelay : 0),
-                soundingBeats,
-                accent,
-                "melody"
-            );
-            beatPosition += beats;
-        });
-
-        if (Math.abs(beatPosition - 4) > 0.00001) {
-            throw new Error(`Demo bar ${index + 1} is not four beats.`);
+            localBeat += duration;
         }
+        const expected = index === 0 ? 0.5 : 2;
+        if (Math.abs(localBeat - expected) > 0.00001) {
+            throw new Error(`Invalid time signature in demo bar ${index + 1}`);
+        }
+        cursor += localBeat;
 
-        const chord = DEMO_CHORDS[DEMO_HARMONIES[index]];
-        if (!chord) throw new Error(`Missing harmony in bar ${index + 1}.`);
-
-        if (index === DEMO_BARS.length - 1) {
-            // Sustain a clear tonic cadence, then allow the sound to decay.
-            chord.forEach((note, voice) => {
-                add(note, start + 2, 1.91, voice === 0 ? 0.24 : 0.14, "harmony");
-            });
-        } else {
-            // Accompaniment breathes with the melody instead of filling its pauses.
-            add(chord[0], start + entryDelay, 0.78, 0.19, "bass");
-            add(chord[1], start + 1, 0.48, 0.11, "harmony");
-            add(chord[2], start + 1, 0.48, 0.11, "harmony");
-            add(chord[0], start + 2, 0.68, 0.16, "bass");
-            const lastChordLength = breathAfterBar ? 0.36 : 0.49;
-            add(chord[1], start + 3, lastChordLength, 0.10, "harmony");
-            add(chord[2], start + 3, lastChordLength, 0.10, "harmony");
+        if (index > 0) {
+            const harmony = DEMO_HARMONIES[index - 1];
+            const chord = DEMO_CHORDS[harmony];
+            if (!chord) throw new Error("Missing demo harmony: " + harmony);
+            const barStart = barStarts[index];
+            if (index === DEMO_BARS.length - 1) {
+                // Last bar holds a soft tonic chord and releases before the UI ends.
+                chord.forEach((note, voice) => {
+                    add(note, barStart, 1.45, voice === 0 ? 0.19 : 0.12, "harmony");
+                });
+            } else {
+                // Flowing bass + light off-beat dyads, with no made-up extra melody.
+                add(chord[0], barStart, 0.70, 0.17, "bass");
+                add(chord[1], barStart + 0.5, 0.43, 0.10, "harmony");
+                add(chord[2], barStart + 0.5, 0.43, 0.10, "harmony");
+                add(chord[0], barStart + 1, 0.57, 0.14, "bass");
+                if (index !== 4) {
+                    add(chord[1], barStart + 1.5, 0.40, 0.09, "harmony");
+                    add(chord[2], barStart + 1.5, 0.40, 0.09, "harmony");
+                }
+            }
         }
     });
 
     events.sort((a, b) => a.start - b.start || a.midi - b.midi);
-    return { events, totalBeats: DEMO_BARS.length * 4 };
+    return { events, totalBeats: cursor, barStarts };
 }
 
 const DEMO_SCORE = buildDemoScore();
 
-// Existing octave buttons control only horizontal scrolling, not timing.
+// Jump through the existing octave shortcuts; sound scheduling never waits.
 const DEMO_OCTAVE_CUES = [
-    [0, 72], [12, 60], [16, 72], [28, 60]
+    [0, 60], [0.5, 72], [4.5, 60], [6.5, 72], [10.5, 60], [12.5, 72]
 ];
 
 function demoOctaveForBeat(beatIndex) {
@@ -1508,10 +1497,15 @@ function renderDemoChord(notes, beat) {
 
     const fifths = KEY_FIFTHS[keyName];
     const displayed = midis.map((midi) => spelledNoteName(midi, fifths)).join("  ");
+    let barIndex = 0;
+    for (let index = 1; index < DEMO_SCORE.barStarts.length; index += 1) {
+        if (beat >= DEMO_SCORE.barStarts[index]) barIndex = index;
+        else break;
+    }
     setStatus("raw", {
-        text: `Beethoven · Ode to Joy · ${Math.min(DEMO_BARS.length, Math.floor(beat / 4) + 1)}/${DEMO_BARS.length}`
+        text: `${t("demoEnd")} · ${barIndex + 1}/${DEMO_BARS.length}`
     });
-    setAnswer("raw", { text: displayed || "Ode to Joy" });
+    setAnswer("raw", { text: displayed || t("demoEnd") });
 }
 
 function buildDemoMusicPointers() {
@@ -1530,12 +1524,12 @@ function hideDemoMusicPointers() {
     });
 }
 
-async function playOdeToJoyDemo() {
+async function playForelleDemo() {
     await ensureAudio();
     player.cancelQueue(audioContext);
     buildDemoMusicPointers();
 
-    const secondsPerBeat = 60 / 132;
+    const secondsPerBeat = 60 / 112;
     const startTime = audioContext.currentTime + 0.22;
     const { events, totalBeats } = DEMO_SCORE;
     let next = 0;
@@ -1582,7 +1576,7 @@ async function playOdeToJoyDemo() {
                 previousOctaveBeat = octaveBeat;
             }
             const signature = current.map((event) => event.midi).sort((a, b) => a - b).join(",");
-            const bar = Math.floor(beat / 4);
+            const bar = DEMO_SCORE.barStarts.reduce((n, x) => beat >= x ? n + 1 : n, 0);
             if (signature !== previousSignature || bar !== previousBar) {
                 renderDemoChord(current, beat);
                 previousSignature = signature;
@@ -1660,6 +1654,7 @@ async function runDemo() {
         if (demoCancelled) return;
         elements.startNote.value = String(midiFromName("C4"));
         elements.endNote.value = String(midiFromName("B5"));
+        elements.keySelect.value = "Db major";
         elements.clefSelect.value = "Treble";
 
         await pointToElement(elements.applyButton);
@@ -1669,12 +1664,12 @@ async function runDemo() {
 
         hideDemoPointer();
         setStatus("demoFree");
-        setAnswer("raw", { text: "Ode to Joy · Piano" });
+        setAnswer("raw", { text: t("demoEnd") });
         await sleep(380);
         if (demoCancelled) return;
 
         document.querySelector(".app-shell").classList.add("demo-music");
-        await playOdeToJoyDemo();
+        await playForelleDemo();
     } finally {
         const wasCancelled = demoCancelled;
         hideDemoPointer();

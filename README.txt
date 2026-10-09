@@ -1,15 +1,21 @@
-Pitch Trainer Mobile v9
+Pitch Trainer Mobile v10
 
-Changes since v8:
-- The demo is still Beethoven's Ode to Joy (8 bars, single treble staff).
-- All six languages now show the correct Beethoven title.
-- More natural phrasing: shorter notes at phrase boundaries, delayed opening
-  attack at the second phrase, lighter accompaniment that respects rests.
-- Existing training, polyphonic free play, layout and octave shortcuts unchanged.
+Changes since v9:
+- Die Forelle D.550 (Schubert), recognizable opening vocal melody only.
+- Melody pitches and rhythms copied from the Mutopia Project public-domain
+  LilyPond score, bars 6-14 (opening sung passage). The chordal backing is
+  a simplified original demo arrangement, not a transcription of Schubert's
+  keyboard part. Reference: https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=502
+- 2/4 meter, 112 BPM, approximately 9 seconds of music plus short decay.
+- Remove the 'after answering' staff hint whenever the app is not waiting
+  for an unanswered pitch-identification question.
+- Demo remains polyphonic with one fixed-height treble staff and the same
+  octave shortcut behavior as the normal app.
+- All six languages have been updated. Normal pitch tests and free play unchanged.
 
-Update GitHub Pages by replacing these three files:
-  app.js
-  i18n.js
-  service-worker.js
+To update GitHub Pages, replace exactly these three files in the repository root:
+    app.js
+    i18n.js
+    service-worker.js
 
-Keep all other v8 files. Upload the files to the repository root (not the ZIP).
+Then commit and reload after GitHub Pages publishes the files.
