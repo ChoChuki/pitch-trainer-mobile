@@ -1376,31 +1376,17 @@ async function demoAnswer(selectedMidi) {
     answer(selectedMidi);
 }
 
-// Schubert: Die Forelle D.550, first vocal phrase with original piano right hand.
-// Score data are generated from the public-domain Mutopia LilyPond transcription.
-const DEMO_TEMPO = 80;
-const DEMO_GAP_SECONDS = 0.030;
+// Exact vocal track from the Mutopia Project #502 MIDI, bars 6-26.
+// No generated accompaniment or speculative harmonies are played.
+const DEMO_TEMPO = 100;
+const DEMO_GAP_SECONDS = 0.025;
 const DEMO_MELODY_VOLUME = 0.72;
-const DEMO_UPPER_VOLUME = 0.32;
-const DEMO_ACCENT_VOLUME = 0.46;
 
 function prepareDemoEvents(data) {
-    const melody = data.events.filter((event) => event.part === "melody");
-    const result = melody.map((event) => ({ ...event, volume: DEMO_MELODY_VOLUME }));
-    for (const event of data.events.filter((item) => item.part === "upper")) {
-        const volume = event.offset === data.ticksPerQuarter ? DEMO_ACCENT_VOLUME : DEMO_UPPER_VOLUME;
-        const sameStart = result.find((item) => item.midi === event.midi && item.start === event.start);
-        const melodyOverlap = melody.some((item) => (
-            item.midi === event.midi && item.start < event.end && event.start < item.end
-        ));
-        if (sameStart) {
-            sameStart.end = Math.max(sameStart.end, event.end);
-            sameStart.volume = Math.max(sameStart.volume, volume);
-        } else if (!melodyOverlap) {
-            result.push({ ...event, volume });
-        }
-    }
-    return result.sort((a, b) => a.start - b.start || a.midi - b.midi);
+    return data.events
+        .filter((event) => event.part === "melody")
+        .map((event) => ({ ...event, volume: DEMO_MELODY_VOLUME }))
+        .sort((a, b) => a.start - b.start || a.midi - b.midi);
 }
 
 const DEMO_EVENTS = prepareDemoEvents(window.DEMO_SCORE_DATA);
@@ -1409,9 +1395,10 @@ function buildDemoOctaveCues(data) {
     const melody = data.events.filter((event) => event.part === "melody");
     const cues = [];
     let previousOctave = null;
-    const origin = (6 - 1) * 2 * data.ticksPerQuarter + 1.5 * data.ticksPerQuarter;
     const quarter = data.ticksPerQuarter;
-    for (let bar = 6; bar <= 14; bar += 1) {
+    const origin = (6 - 1) * 2 * quarter + 1.5 * quarter;
+    const finalBar = Math.max(...melody.map((event) => event.bar));
+    for (let bar = 6; bar <= finalBar; bar += 1) {
         const absoluteStart = (bar - 1) * 2 * quarter;
         const localStart = Math.max(0, absoluteStart - origin);
         const localEnd = (absoluteStart + 2 * quarter) - origin;
@@ -1505,7 +1492,7 @@ async function playForelleDemo() {
     const secondsPerTick = (60 / DEMO_TEMPO) / data.ticksPerQuarter;
     const startTime = audioContext.currentTime + 0.18;
     const events = DEMO_EVENTS;
-    const finalTick = Math.max(...events.map((event) => event.end));
+    const finalTick = data.stopTick;
     let next = 0;
     let nextCue = 0;
     let previousSignature = null;
@@ -1542,7 +1529,7 @@ async function playForelleDemo() {
                 renderDemoChord(sounding);
                 previousSignature = signature;
             }
-            if (tick >= finalTick + 0.35 * data.ticksPerQuarter) {
+            if (tick >= finalTick + 0.25 * data.ticksPerQuarter) {
                 window.clearInterval(demoTimer);
                 demoTimer = null;
                 demoResolve = null;
@@ -1660,7 +1647,7 @@ async function runDemo() {
         await sleep(360);
 
         if (demoCancelled) return;
-        elements.startNote.value = String(midiFromName("C3"));
+        elements.startNote.value = String(midiFromName("C4"));
         elements.endNote.value = String(midiFromName("B5"));
         elements.keySelect.value = "Db major";
         elements.clefSelect.value = "Treble";

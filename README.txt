@@ -1,35 +1,25 @@
-Pitch Trainer Mobile v11
+Pitch Trainer Mobile v12
 
-What's changed from v10
-- Demo restores the applied settings, any un-applied selector edits, note/staff
-  display, keyboard scroll position and page scroll, both after completion and
-  cancellation. The music title is never left on the idle screen.
-- Demo now plays a short Schubert Die Forelle vocal excerpt and the right-hand
-  notes transcribed from the Mutopia public-domain LilyPond score.
-- Demo music is stored in demo-score.js with source bar/tick metadata.
-- Multi-note duplicates from voice + accompaniment are de-duplicated.
-- Staff layout is determined by selected note range, not pressed notes.
-- Demo stop is immediate; normal buttons do not appear disabled in Demo.
-- Free-play key release is individually handled via WebAudioFont envelopes.
-- Service worker cache version bumped and cache installation bypasses HTTP cache.
+Demo music
+- Schubert: Die Forelle, D.550, public-domain original MIDI vocal track.
+- Original MIDI source: https://github.com/SMUGSterling/FretFree/blob/main/scores/mutopia-502/original.mid
+- Git blob SHA: c2127b69737868a82f7337d37835da142ba8f34c
+- Public-domain score reference: https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=502
+- Measures: pickup in bar 6 through bar 26 (inclusive), melody ONLY, no accompaniment.
+- Exact extracted MIDI pitches and relative tick positions in demo-score.js.
+- v11 opening 29 melody events have been checked against original MIDI extraction.
+- Ending: bar 26 Db5 quarter note then a quarter rest (not a cut-off mid-phrase).
+- Demo playing speed: 100 quarter notes/minute; notation remains unchanged.
+- The music playback lasts about 24 seconds. Total walkthrough is longer.
 
-Music source
-https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=502
-Generated via tools/build_demo_score.py (a manual transcription from LilyPond).
-MIDI cross-verification of the transcription is NOT included in the runtime,
-and has NOT been completed in this release. Do not claim it has been completed.
+Deploy via GitHub Pages
+- Upload app.js, demo-score.js, service-worker.js to repository root.
+- Leave all other v11 files unchanged.
+- Reload the website after deployment and reopen the PWA.
 
-GitHub Pages
-Upload these 6 files to the repository root, replacing existing files:
-    app.js
-    demo-score.js (new)
-    i18n.js
-    index.html
-    styles.css
-    service-worker.js
-No external app libraries have changed; existing icons/manifest stay the same.
-Refresh the GitHub Pages page after deployment, then reopen installed PWA.
-
-Local test
-    python -m http.server 8000
-Open http://localhost:8000
+Independent reference verification
+- Source MIDI reference data is stored at tools/original_midi_excerpt.json.
+- Run: python tools/verify_against_midi.py [path/to/original.mid]
+- Without a supplied MIDI path, the checker downloads the source MIDI from
+  the upstream Mutopia URL. This network-dependent test may require internet.
+- Use: node tools/test_score.js to run local structural checks.
