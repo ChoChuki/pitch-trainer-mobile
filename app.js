@@ -1,5 +1,5 @@
-const APP_VERSION = "17";
-const PLAY_DURATION = 1.4;
+const APP_VERSION = "18.1";
+const PLAY_DURATION = 0.7;
 const SUPPORTED_MIN_MIDI = 36;
 const SUPPORTED_MAX_MIDI = 95;
 const DEFAULT_MIN_MIDI = 60;

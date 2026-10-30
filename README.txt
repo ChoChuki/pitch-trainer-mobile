@@ -1,3 +1,25 @@
+Pitch Trainer Mobile v18.1 — shorter single-note playback
+
+Based exactly on the user-supplied v18 source ZIP (first stanza of Die Forelle, 59 original MIDI events).
+
+Only change in audio behaviour:
+- PLAY_DURATION for ordinary single-note test playback, reference-note audition and answering/free tap after a quiz is 0.7s (previously 1.4s).
+- Two-note quiz sequence remains reference 0.6s, then target 0.9s at +0.8s.
+- Free-play keys still sustain while held and release on pointer up.
+- Demo performance uses its own MIDI event durations, which are unchanged.
+
+Other code changes: update APP_VERSION and service-worker CACHE_NAME so browsers can load the latest code.
+
+Deployment to EXISTING Cloudflare Worker:
+1. Unzip Pitch_Trainer_Mobile_v18_1_site.zip.
+2. Upload its nine website files at the root of the current Pitch Trainer Worker (not the Violin Worker).
+3. Deploy. The URL is unchanged. Reopen/reload the app to activate the new service worker.
+
+The _update.zip contains app.js and service-worker.js only.
+The full _source.zip includes tests and the original MIDI verification reference.
+
+Original v18 readme preserved below for reference:
+
 Pitch Trainer Mobile v18 — First stanza (four two-line groups) of Die Forelle
 
 This v18 REPLACES the previously withdrawn v18 46-note ZIPs.
