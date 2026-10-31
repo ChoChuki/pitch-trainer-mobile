@@ -1,5 +1,8 @@
 const TRANSLATIONS = {
   "en": {
+    "maxInterval": "Max interval (semitones)",
+    "unlimited": "Unlimited",
+    "distinctRangeError": "Choose at least two pitches to avoid repeated questions.",
     "mode": "Mode",
     "single": "Single note",
     "interval": "Two notes",
@@ -57,6 +60,9 @@ const TRANSLATIONS = {
     "held": "Playing {count} note(s)"
   },
   "de": {
+    "maxInterval": "Max. Intervall (Halbt\xf6ne)",
+    "unlimited": "Unbegrenzt",
+    "distinctRangeError": "F\xfcr Fragen ohne Tonwiederholung mindestens zwei Tonh\xf6hen w\xe4hlen.",
     "mode": "Modus",
     "single": "Einzelton",
     "interval": "Zwei T\xf6ne",
@@ -114,6 +120,9 @@ const TRANSLATIONS = {
     "held": "{count} Taste(n) gehalten"
   },
   "ja": {
+    "maxInterval": "\u6700\u5927\u97f3\u7a0b\uff08\u534a\u97f3\uff09",
+    "unlimited": "\u5236\u9650\u306a\u3057",
+    "distinctRangeError": "\u9023\u7d9a\u3057\u3066\u540c\u3058\u97f3\u3092\u51fa\u3055\u306a\u3044\u305f\u3081\u3001\u5c11\u306a\u304f\u3068\u30822\u3064\u306e\u97f3\u9ad8\u3092\u6307\u5b9a\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     "mode": "\u30e2\u30fc\u30c9",
     "single": "\u5358\u97f3",
     "interval": "2\u97f3",
@@ -171,6 +180,9 @@ const TRANSLATIONS = {
     "held": "{count}\u97f3\u3092\u6f14\u594f\u4e2d"
   },
   "it": {
+    "maxInterval": "Intervallo max. (semitoni)",
+    "unlimited": "Senza limite",
+    "distinctRangeError": "Seleziona almeno due altezze per evitare ripetizioni consecutive.",
     "mode": "Modalit\xe0",
     "single": "Nota singola",
     "interval": "Due note",
@@ -228,6 +240,9 @@ const TRANSLATIONS = {
     "held": "{count} nota/e in esecuzione"
   },
   "el": {
+    "maxInterval": "\u039c\u03ad\u03b3. \u03b4\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 (\u03b7\u03bc\u03b9\u03c4\u03cc\u03bd\u03b9\u03b1)",
+    "unlimited": "\u03a7\u03c9\u03c1\u03af\u03c2 \u03cc\u03c1\u03b9\u03bf",
+    "distinctRangeError": "\u0395\u03c0\u03b9\u03bb\u03ad\u03be\u03c4\u03b5 \u03c4\u03bf\u03c5\u03bb\u03ac\u03c7\u03b9\u03c3\u03c4\u03bf\u03bd \u03b4\u03cd\u03bf \u03c6\u03b8\u03cc\u03b3\u03b3\u03bf\u03c5\u03c2 \u03b3\u03b9\u03b1 \u03bd\u03b1 \u03bc\u03b7\u03bd \u03b5\u03c0\u03b1\u03bd\u03b1\u03bb\u03b1\u03bc\u03b2\u03ac\u03bd\u03b5\u03c4\u03b1\u03b9 \u03bf \u03af\u03b4\u03b9\u03bf\u03c2.",
     "mode": "\u039b\u03b5\u03b9\u03c4\u03bf\u03c5\u03c1\u03b3\u03af\u03b1",
     "single": "\u039c\u03af\u03b1 \u03bd\u03cc\u03c4\u03b1",
     "interval": "\u0394\u03cd\u03bf \u03bd\u03cc\u03c4\u03b5\u03c2",
@@ -285,6 +300,9 @@ const TRANSLATIONS = {
     "held": "\u03a0\u03b1\u03af\u03b6\u03bf\u03bd\u03c4\u03b1\u03b9 {count} \u03bd\u03cc\u03c4\u03b5\u03c2"
   },
   "zh-TW": {
+    "maxInterval": "\u6700\u5927\u97f3\u7a0b\uff08\u534a\u97f3\uff09",
+    "unlimited": "\u4e0d\u9650",
+    "distinctRangeError": "\u8acb\u9078\u64c7\u81f3\u5c11\u5169\u500b\u97f3\u9ad8\uff0c\u907f\u514d\u9023\u7e8c\u51fa\u73fe\u76f8\u540c\u97f3\u3002",
     "mode": "\u6a21\u5f0f",
     "single": "\u55ae\u97f3",
     "interval": "\u5169\u97f3",
