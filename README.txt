@@ -1,3 +1,13 @@
+Pitch Trainer Mobile v18.3 — Two notes: minimum/maximum interval and target direction
+
+New in this release:
+- Min interval: 1–24 semitones (default 1); Max interval unchanged: 1–24 or Unlimited (default Unlimited).
+- Target direction: Higher, Lower, or Both (random; default Both).
+- Both reference and target remain inside From/To and respect the chosen interval limits.
+- Reject impossible combinations and settings that yield only one target pitch (non-repeat rule).
+- Two-note settings are isolated from Single note and restored after Demo, including pending form edits.
+- No changes to either music Demo, 0.7s listening tone, or free-play timing.
+
 New release: 18.2 — non-repeating targets and user-selectable maximum two-note interval
 
 Based on the user-provided 18.1 source package. All original demo-score.js events and demo audio

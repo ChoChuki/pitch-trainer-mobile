@@ -1,4 +1,4 @@
-const APP_VERSION = "18.2";
+const APP_VERSION = "18.3";
 const PLAY_DURATION = 0.7;
 const SUPPORTED_MIN_MIDI = 36;
 const SUPPORTED_MAX_MIDI = 95;
@@ -195,6 +195,8 @@ const elements = {
     clefSelect: document.getElementById("clefSelect"),
     modeSelect: document.getElementById("modeSelect"),
     maxIntervalSelect: document.getElementById("maxIntervalSelect"),
+    minIntervalSelect: document.getElementById("minIntervalSelect"),
+    directionSelect: document.getElementById("directionSelect"),
     intervalPicker: document.getElementById("intervalPicker"),
     applyButton: document.getElementById("applyButton"),
     playButton: document.getElementById("playButton"),
@@ -213,6 +215,8 @@ let currentReferenceMidi = null;
 // The last real quiz target survives Next/Stop/Apply and is not changed by Demo.
 let lastQuestionMidi = null;
 let maxIntervalSemitones = null; // null = unlimited
+let minIntervalSemitones = 1;
+let targetDirection = "both"; // higher / lower / both, compared with reference pitch
 let questionSerial = 0;
 let currentMidi = null;
 let answered = false;
@@ -278,7 +282,7 @@ function setLanguage(language) {
     document.getElementById("languageSelect").value = currentLanguage;
     const labels = {
         languageLabel: "language", fromLabel: "from", toLabel: "to",
-        keyLabel: "key", clefLabel: "clef", modeLabel: "mode", maxIntervalLabel: "maxInterval", applyButton: "apply",
+        keyLabel: "key", clefLabel: "clef", modeLabel: "mode", maxIntervalLabel: "maxInterval", minIntervalLabel: "minInterval", targetDirectionLabel: "targetDirection", applyButton: "apply",
         playButton: "play", nextButton: "next", demoButton: "demo", helpText: "hint"
     };
     for (const [id, key] of Object.entries(labels)) {
@@ -293,6 +297,9 @@ function setLanguage(language) {
         option.textContent = t(option.value);
     }
     elements.maxIntervalSelect.options[0].textContent = t("unlimited");
+    for (const option of elements.directionSelect.options) {
+        option.textContent = t(`direction${option.value.charAt(0).toUpperCase()}${option.value.slice(1)}`);
+    }
     const clefSelect = elements.clefSelect;
     for (const option of clefSelect.options) {
         option.textContent = t(option.value.toLowerCase());
@@ -957,6 +964,8 @@ function setControlsEnabled(enabled) {
     elements.keySelect.disabled = !enabled;
     elements.clefSelect.disabled = !enabled;
     elements.maxIntervalSelect.disabled = !enabled;
+    elements.minIntervalSelect.disabled = !enabled;
+    elements.directionSelect.disabled = !enabled;
 }
 
 async function ensureAudio() {
@@ -1144,7 +1153,38 @@ function updatePlayButton() {
 function updateIntervalPickerVisibility() {
     const visible = elements.modeSelect.value === "interval";
     elements.intervalPicker.hidden = !visible;
-    elements.intervalPicker.parentElement.classList.toggle("has-interval-limit", visible);
+}
+
+function intervalTargetPools(from, to, minDistance, maxDistance, direction, excludedTarget = null) {
+    // Collect only feasible target/reference choices; no retry loops, even at boundaries.
+    const limit = Math.min(maxDistance ?? (to - from), to - from);
+    const higher = [];
+    const lower = [];
+    for (let target = from; target <= to; target += 1) {
+        if (target === excludedTarget) continue;
+        if (direction !== "lower") {
+            const refMin = Math.max(from, target - limit);
+            const refMax = target - minDistance;
+            if (refMin <= refMax) higher.push({ target, refMin, refMax });
+        }
+        if (direction !== "higher") {
+            const refMin = target + minDistance;
+            const refMax = Math.min(to, target + limit);
+            if (refMin <= refMax) lower.push({ target, refMin, refMax });
+        }
+    }
+    return [higher, lower].filter((pool) => pool.length > 0);
+}
+
+function pickIntervalQuestion() {
+    const pools = intervalTargetPools(minMidi, maxMidi, minIntervalSemitones,
+        maxIntervalSemitones, targetDirection, lastQuestionMidi);
+    if (!pools.length) return null;
+    // In random-both mode choose the direction first, so neither direction dominates.
+    const pool = pools[Math.floor(Math.random() * pools.length)];
+    const choice = pool[Math.floor(Math.random() * pool.length)];
+    const reference = choice.refMin + Math.floor(Math.random() * (choice.refMax - choice.refMin + 1));
+    return { target: choice.target, reference };
 }
 
 function newQuestion() {
@@ -1153,46 +1193,40 @@ function newQuestion() {
     window.clearTimeout(freeDisplayTimeout);
     resetKeyboardColors();
 
-    // Avoid repeating the exact MIDI target from the previous real question,
-    // even across Stop / Apply. Requires at least two notes in the range.
-    const targets = [];
-    for (let pitch = minMidi; pitch <= maxMidi; pitch += 1) {
-        if (pitch !== lastQuestionMidi) targets.push(pitch);
+    let target;
+    if (testMode === "interval") {
+        // Choose only pairs that obey both limits, direction and non-repeating target.
+        const pair = pickIntervalQuestion();
+        if (!pair) {
+            setStatus("intervalNoRepeat");
+            return;
+        }
+        target = pair.target;
+        currentReferenceMidi = pair.reference;
+    } else {
+        const targets = [];
+        for (let pitch = minMidi; pitch <= maxMidi; pitch += 1) {
+            if (pitch !== lastQuestionMidi) targets.push(pitch);
+        }
+        if (!targets.length) {
+            setStatus("distinctRangeError");
+            return;
+        }
+        target = targets[Math.floor(Math.random() * targets.length)];
+        currentReferenceMidi = null;
     }
-    if (!targets.length) {
-        setStatus("distinctRangeError");
-        return;
-    }
-    const target = targets[Math.floor(Math.random() * targets.length)];
 
     testActive = true;
     answered = false;
     questionSerial += 1;
     updatePlayButton();
+    currentMidi = target;
     if (testMode === "interval") {
-        // Pick a reference in the configured From/To range, different from the
-        // target and no farther apart than the user-selected maximum interval.
-        const limit = maxIntervalSemitones ?? (maxMidi - minMidi);
-        const references = [];
-        for (let pitch = Math.max(minMidi, target - limit);
-            pitch <= Math.min(maxMidi, target + limit); pitch += 1) {
-            if (pitch !== target) references.push(pitch);
-        }
-        if (!references.length) {
-            setStatus("intervalRangeError");
-            testActive = false;
-            updatePlayButton();
-            return;
-        }
-        currentReferenceMidi = references[Math.floor(Math.random() * references.length)];
-        currentMidi = target;
         setStatus("listenInterval", { note: spelledNoteName(currentReferenceMidi, KEY_FIFTHS[keyName]) });
         setAnswer("chooseInterval");
         markReferenceKey();
         jumpToReferenceOctave();
     } else {
-        currentReferenceMidi = null;
-        currentMidi = target;
         setStatus("listen");
         setAnswer("choose");
     }
@@ -1313,6 +1347,25 @@ function applySettings() {
         setStatus("distinctRangeError");
         return;
     }
+    if (elements.modeSelect.value === "interval") {
+        const minDistance = Number(elements.minIntervalSelect.value);
+        const maxDistance = elements.maxIntervalSelect.value === "unlimited"
+            ? null : Number(elements.maxIntervalSelect.value);
+        if (maxDistance !== null && minDistance > maxDistance) {
+            setStatus("invalidIntervalLimits");
+            return;
+        }
+        const pools = intervalTargetPools(startMidi, endMidi, minDistance,
+            maxDistance, elements.directionSelect.value);
+        if (!pools.length) {
+            setStatus("intervalNoPairs");
+            return;
+        }
+        if (new Set(pools.flat().map((candidate) => candidate.target)).size < 2) {
+            setStatus("intervalNoRepeat");
+            return;
+        }
+    }
 
     minMidi = startMidi;
     maxMidi = endMidi;
@@ -1321,6 +1374,8 @@ function applySettings() {
     testMode = elements.modeSelect.value;
     maxIntervalSemitones = elements.maxIntervalSelect.value === "unlimited"
         ? null : Number(elements.maxIntervalSelect.value);
+    minIntervalSemitones = Number(elements.minIntervalSelect.value);
+    targetDirection = elements.directionSelect.value;
     updateIntervalPickerVisibility();
 
     releaseAllKeys();
@@ -1382,6 +1437,14 @@ function populateSelectors() {
         elements.maxIntervalSelect.appendChild(option);
     }
     elements.maxIntervalSelect.value = "unlimited";
+    for (let semitones = 1; semitones <= 24; semitones += 1) {
+        const option = document.createElement("option");
+        option.value = String(semitones);
+        option.textContent = String(semitones);
+        elements.minIntervalSelect.appendChild(option);
+    }
+    elements.minIntervalSelect.value = "1";
+    elements.directionSelect.value = "both";
     elements.modeSelect.value = "single";
 }
 
@@ -1734,14 +1797,16 @@ async function playForelleDemo() {
 
 function captureDemoSnapshot() {
     return {
-        applied: { minMidi, maxMidi, keyName, clefMode, testMode, maxIntervalSemitones },
+        applied: { minMidi, maxMidi, keyName, clefMode, testMode, maxIntervalSemitones, minIntervalSemitones, targetDirection },
         form: {
             startNote: elements.startNote.value,
             endNote: elements.endNote.value,
             keySelect: elements.keySelect.value,
             clefSelect: elements.clefSelect.value,
             modeSelect: elements.modeSelect.value,
-            maxIntervalSelect: elements.maxIntervalSelect.value
+            maxIntervalSelect: elements.maxIntervalSelect.value,
+            minIntervalSelect: elements.minIntervalSelect.value,
+            directionSelect: elements.directionSelect.value
         },
         state: { testActive, answered, currentMidi, currentReferenceMidi },
         status: { ...statusMessage },
@@ -1764,6 +1829,8 @@ function restoreDemoSnapshot(snapshot) {
     elements.modeSelect.value = applied.testMode;
     elements.maxIntervalSelect.value = applied.maxIntervalSemitones === null
         ? "unlimited" : String(applied.maxIntervalSemitones);
+    elements.minIntervalSelect.value = String(applied.minIntervalSemitones);
+    elements.directionSelect.value = applied.targetDirection;
     applySettings();
 
     elements.startNote.value = form.startNote;
@@ -1772,6 +1839,8 @@ function restoreDemoSnapshot(snapshot) {
     elements.clefSelect.value = form.clefSelect;
     elements.modeSelect.value = form.modeSelect;
     elements.maxIntervalSelect.value = form.maxIntervalSelect;
+    elements.minIntervalSelect.value = form.minIntervalSelect;
+    elements.directionSelect.value = form.directionSelect;
     updateIntervalPickerVisibility();
     testActive = state.testActive;
     answered = state.answered;
