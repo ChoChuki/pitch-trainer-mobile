@@ -1,138 +1,91 @@
-Pitch Trainer Mobile v18.4 — added Absolute Pitch assessment mode
+Pitch Trainer Mobile v18.6 — Absolute-pitch learning + cold-start checks + optional training-time sync
 
-Based on the complete preceding v18.3 / v2.2.3 source archive, with no refactoring.
-The Mode selector now offers a third, strictly optional Absolute pitch mode alongside
-unchanged Single note and Two notes. Default Mode remains Single note.
+BASELINE
+Pitch Trainer Mobile v18.5 complete source ZIP, NOT reconstructed from chat.
+Piano and violin remain two independent static PWAs / Cloudflare Workers projects.
+Original Single note, Two notes, free play, six languages, clefs, key signatures,
+Demo, touch interactions and 0.7-second single-note timing are retained.
 
-Absolute pitch mode:
-- 12 or 20 questions per round; 5s default limit, optional 2s or untimed.
-- Only one isolated note is sounded per question; no reference/replay/correct-note audio.
-- A minimum 24-semitone From/To span is required. Consecutive targets differ by
-  >12 semitones AND by pitch class; target generation uses finite eligible pools.
-- Answer via one of 12 note-name buttons, ignoring octave to test pitch chroma.
-- Suppress correctness, pitch-name and staff feedback until the full round ends.
-  Do not play instrument keys in this mode, since that would give a reference pitch.
-- Next remains a manual action after an answer or timeout. On finishing, show
-  per-question answers and total score; Stop Test cancels the round.
-- Demo starts/restores the previous mode, settings, and current test state.
-- All six interface languages and independent Service Worker cache versions are updated.
+AP SCIENCE / GATE v2 (updated after independent A/B review)
+- The two applications remain independent, including their course progress and
+  trial records. Historical data and training-time records are NOT cleared.
+- Critical security-of-measurement fix: AP learning and AP cold check draw
+  each class independently, allow repeated note names, and equalize octaves.
+  No forced alternation or search rewarding long adjacent jumps is used.
+- AP cold checks: fixed C4-B5, 24 notes in two complete octaves (endpoint
+  distance 23 semitones), both instruments. Thirty questions, 5s response.
+  Written confirmations cover the other trainer, tuning/playing and known
+  pitch music within the prior four hours. These remain SELF-REPORTED.
+- To count for promotion: first self-confirmed check of the local Japan day,
+  at least four hours after this site's last recorded pitch activity, no
+  loss of focus or hidden page, 27/30 or better, and at least 80% accuracy
+  separately on trained and Other categories (where present).
+- Promotion needs TWO CONSECUTIVE eligible-day passes, and at least ten
+  trials for the newest note with >=80% correct, plus four Other trials with
+  >=80% correct (within seven days). Evidence requirements are experimental
+  product criteria, NOT scientifically validated AP thresholds.
+- An interrupted/abandoned qualifying cold check counts as a failed day;
+  later retries that day are practice-only. Prior vulnerable gate passes are
+  archived as legacyGatePasses and NOT reused for promotion. Unlocked levels
+  and older stored results remain available.
+- Cold answer lists may optionally be hidden after completion and revealed
+  later, allowing back-to-back piano/violin checks without instant labels.
+- AP learning keeps 12-question immediate feedback and now plays labelled
+  feedback for timeout and the final question too. Optional pitch sweep is
+  OFF by default. This is learning, not promotion evidence.
+- AP informal assessment 12/20 trials uses independent pitch classes; 36/48
+  uses per-name and octave-balanced quotas. No fixed >12-semitone jump is
+  promised, because the old optimiser created serious sequence clues.
+- Trial CSV includes pointer event timing, output-device self-report,
+  latency estimates, hidden counts and the selected distractor option.
+  These timestamps are NOT an acoustic-onset measurement for Bluetooth.
+- From/To, clefs and other older Single/Two note/free play controls remain
+  available. Demo note events and schedules are byte-identical to v18.5 or
+  v2.2.5. All six locales include the new AP labels.
+- The training-time backend from the previous delivery is unchanged. Cloud
+  sync still requires a separately configured Worker; local time survives
+  updates. No external tonal samples were added (source licensing and
+  timbral verification remain future work).
 
-Original Single note, Two notes, unrestricted free playing, demo-score.js events,
-0.7s ordinary single-note audio, interval 0.6s/0.9s audio and held-key timing
-are preserved. This mode reduces reliance on relative-pitch strategies but cannot
-prove that all relative-pitch strategies have been eliminated.
+TRAINING TIME (OPTIONAL)
+- Both sites include the same training-tracker.js. It counts only meaningful
+  question/answer/free-play actions, pauses after 75 seconds without activity
+  and when the tab is hidden or loses focus. Tokyo day boundaries are respected.
+- Offline local segments survive refreshes/updates. Cloud sync is NOT automatic:
+  a separate shared Cloudflare Worker + D1 must first be deployed, then both
+  sites/devices configured with its URL and the same 128-bit pairing code.
+- The shared backend, plugin API contract and setup guide are delivered in
+  Musik_Training_Sync_Worker_v1.zip. DO NOT deploy backend files as static assets.
+- The existing Chrome reminder extension's source was NOT supplied; its old
+  reminder logic is not modified here. The plugin developer must switch to the
+  shared API and stop independent time-counting to avoid double counting.
 
-To deploy, extract this version's _site.zip and upload its NINE site files to the
-EXISTING appropriate Cloudflare Worker, with index.html at the root.
-Never upload the piano ZIP to the violin Worker, or vice versa.
+FILES MODIFIED OR ADDED
+app.js, index.html, i18n.js, styles.css, service-worker.js,
+ap-science.js (new), training-tracker.js (new), this README, verification tools.
+manifest.webmanifest and both demo-score.js files were not altered.
 
-Evidence: Wong et al. (2025), Psychonomic Bulletin & Review,
-DOI: 10.3758/s13423-024-02620-2. The paper includes restricted-feedback
-assessment, octave-spanning adjacent test tones, chroma generalization and
-response time windows. Our implementation is not a reproduction of their full
-8-week training curriculum.
+DEPLOYMENT
+Unzip the **site** package. Upload the root-level index.html and assets to the
+EXISTING Cloudflare Worker for this exact instrument. Do not create a new piano
+or violin Worker, do not mix the packages, and do not add a parent folder.
+Cache revision: pitch-trainer-mobile-v18.6.
 
---- Previous release notes ---
+VERIFICATION
+- JavaScript syntax: node --check for all site JS files.
+- tools/test_ap_curriculum.py: Playwright simulated 360x667 and 390x844,
+  complete 12-question learning, 30-question cold check, 48-note balanced test,
+  new intervals, six translations and on-screen bounds.
+- tools/test_quiz_rules.py, tools/test_interval_refinement.py: old quiz rules.
+- tools/test_training_clock.js: Node simulated idle, Tokyo midnight and reload.
+- Demo file byte SHA-256 compared with previous stable complete source.
+- For piano tools/test_score.js checks all 59 vocal melody events.
+- Legacy absolute-pitch test is preserved as *legacy* but its prior 13-semitone
+  hard constraint and 12-button assertion no longer describe the new design.
 
-Pitch Trainer Mobile v18.3 — Two notes: minimum/maximum interval and target direction
-
-New in this release:
-- Min interval: 1–24 semitones (default 1); Max interval unchanged: 1–24 or Unlimited (default Unlimited).
-- Target direction: Higher, Lower, or Both (random; default Both).
-- Both reference and target remain inside From/To and respect the chosen interval limits.
-- Reject impossible combinations and settings that yield only one target pitch (non-repeat rule).
-- Two-note settings are isolated from Single note and restored after Demo, including pending form edits.
-- No changes to either music Demo, 0.7s listening tone, or free-play timing.
-
-New release: 18.2 — non-repeating targets and user-selectable maximum two-note interval
-
-Based on the user-provided 18.1 source package. All original demo-score.js events and demo audio
-scheduling remain unchanged. The ordinary 0.7-second single-note audition remains unchanged.
-
-- Single note: each new quiz target excludes the previous real quiz target (exact MIDI pitch).
-- Two notes: the target likewise never equals the previous real quiz target. The two pitches
-  must be different and must both lie inside the original From/To range.
-- Two notes: Max interval select offers Unlimited (default) or any 1–24 semitones.
-  A numeric limit applies to the absolute semitone distance, up or down.
-- At least two pitches in From/To are required for any quiz, otherwise a translated error
-  appears at Apply. This avoids impossible no-repeat single-pitch quiz ranges.
-- Next, not a timer, advances to the next question. The previous real target remains
-  remembered over Stop/Apply; the prerecorded scripted Demo does not alter it.
-- The new setting is applied by pressing Apply; its selector is visible only when the
-  form's Mode is Two notes. The Demo snapshot restores both applied and un-applied settings.
-- Piano and Violin are separate PWAs, with separate caches and upload destinations.
-
-Cloudflare Worker static assets: use the _site.zip, extract its nine website files
-into the EXISTING respective Worker and Deploy. Do not overwrite the other app.
-
-Pitch Trainer Mobile v18.1 — shorter single-note playback
-
-Based exactly on the user-supplied v18 source ZIP (first stanza of Die Forelle, 59 original MIDI events).
-
-Only change in audio behaviour:
-- PLAY_DURATION for ordinary single-note test playback, reference-note audition and answering/free tap after a quiz is 0.7s (previously 1.4s).
-- Two-note quiz sequence remains reference 0.6s, then target 0.9s at +0.8s.
-- Free-play keys still sustain while held and release on pointer up.
-- Demo performance uses its own MIDI event durations, which are unchanged.
-
-Other code changes: update APP_VERSION and service-worker CACHE_NAME so browsers can load the latest code.
-
-Deployment to EXISTING Cloudflare Worker:
-1. Unzip Pitch_Trainer_Mobile_v18_1_site.zip.
-2. Upload its nine website files at the root of the current Pitch Trainer Worker (not the Violin Worker).
-3. Deploy. The URL is unchanged. Reopen/reload the app to activate the new service worker.
-
-The _update.zip contains app.js and service-worker.js only.
-The full _source.zip includes tests and the original MIDI verification reference.
-
-Original v18 readme preserved below for reference:
-
-Pitch Trainer Mobile v18 — First stanza (four two-line groups) of Die Forelle
-
-This v18 REPLACES the previously withdrawn v18 46-note ZIPs.
-
-Exactly first stanza of Schubert's Die Forelle once:
-1. In einem Bächlein helle / Da schoß in froher Eil
-2. Die launische Forelle / Vorüber wie ein Pfeil
-3. Ich stand an dem Gestade / Und sah in süßer Ruh
-4. Des muntern Fischleins Bade / Im klaren Bächlein zu
-
-The original score repeats the last TWO lines (Des muntern...Im klaren...).
-That repeated couplet is omitted by stopping after the first 'zu' in bar 22.
-- Original Mutopia MIDI melody, bars 6 pickup through bar 22, first 'zu'.
-- 59 note events, pitches/rhythms/timings match original exactly.
-- 100 BPM, 19.2 seconds of notes, 1 final beat of rest (~19.8 seconds).
-- No invented notes or accompaniment.
-- Original Demo audio engine, octave navigation, and UI left untouched.
-
-Training modes and six interface languages remain exactly as in v17,
-including the improved relative-pitch reference feedback.
-
-Only changed deployed website files:
-- demo-score.js (59 original MIDI notes; first stanza without repeat)
-- app.js (one explanatory comment only; functional code untouched)
-- service-worker.js (cache name v18)
-All other website assets are byte-for-byte the same as v17.
-
-Cloudflare: unzip v18_site.zip and upload its NINE files to the EXISTING Worker.
-GitHub Pages: overwrite the three files in v18_update.zip.
-Full v18.zip also contains optional tests, README and MIDI reference data.
-
-Source: https://github.com/SMUGSterling/FretFree/blob/main/scores/mutopia-502/original.mid
-LilyPond lyric and melody sheet: https://github.com/MutopiaProject/MutopiaProject/tree/master/ftp/SchubertF/D550/forelle/forelle-lys
-MIDI source git blob: c2127b69737868a82f7337d37835da142ba8f34c
-
-Verification:
-  node --check app.js
-  node --check demo-score.js
-  node tools/test_score.js
-  node tools/test_translations.js
-  python tools/test_mobile_v18.py
-  python tools/test_octave_visibility.py
-  python tools/test_feedback_layout.py
-
-Automated browsers use mock audio; real-device listening still needs checking.
-
-Absolute-pitch assessment mode: 12/20-trial batches; feedback only after the round;
->12 semitone adjacent jumps; 12 chroma answers across octaves; optional 5s/2s/untimed.
-Existing Single / Two notes / Demo are unchanged except for mode integration.
+LIMITATIONS
+Simulated audio calls do not establish real phone touch/audio latency or sound.
+Cloudflare live Worker+D1 sync, cloud interruptions, external Bluetooth output,
+true cross-day learning outcomes, multiple timbres and actual Chrome extension
+integration have NOT been verified. Test these before treating the progress as a
+rigorous measure of absolute-pitch learning.
