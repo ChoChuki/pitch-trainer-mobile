@@ -1,4 +1,4 @@
-const APP_VERSION = "18.9";
+const APP_VERSION = "18.10";
 const PLAY_DURATION = 0.7;
 const SUPPORTED_MIN_MIDI = 36;
 const SUPPORTED_MAX_MIDI = 95;
