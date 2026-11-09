@@ -1,4 +1,4 @@
-const APP_VERSION = "18.6";
+const APP_VERSION = "18.9";
 const PLAY_DURATION = 0.7;
 const SUPPORTED_MIN_MIDI = 36;
 const SUPPORTED_MAX_MIDI = 95;
@@ -208,6 +208,7 @@ const elements = {
     playButton: document.getElementById("playButton"),
     nextButton: document.getElementById("nextButton"),
     staff: document.getElementById("staff"),
+    intervalReplayButton: document.getElementById("intervalReplayButton"),
     keyboard: document.getElementById("keyboard"),
     keyboardScroller: document.getElementById("keyboardScroller")
 };
@@ -302,7 +303,8 @@ function setLanguage(language) {
         option.textContent = `${tonic} ${t(mode)}`;
     }
     for (const option of elements.modeSelect.options) {
-        option.textContent = t(option.value);
+        option.textContent = option.value === "rpCourse"
+            ? RelativePitchCourse.T(currentLanguage,"course") : t(option.value);
     }
     elements.maxIntervalSelect.options[0].textContent = t("unlimited");
     elements.apTimeSelect.options[0].textContent = t("apSeconds");
@@ -342,6 +344,8 @@ function setLanguage(language) {
     }
     updateStaffReplayAccess();
     updateApView();
+    if (window.RPUI) RPUI.changedLanguage();
+    renderApMemory();
 }
 function noteName(midi) {
     const octave = Math.floor(midi / 12) - 1;
@@ -862,8 +866,10 @@ function highlightOctave(midi) {
 function drawKeyboard() {
     // Keep natural-size keys when possible, but fit seven white keys (C-B)
     // on a phone. Every octave uses the same width and left alignment.
-    const viewport = elements.keyboardScroller.clientWidth;
-    WHITE_WIDTH = Math.min(52, (viewport - 2) / 7);
+    // The RP name-answer screen temporarily hides the keyboard; never
+    // initialize its geometry from a zero-width hidden container.
+    const viewport = elements.keyboardScroller.clientWidth || Math.max(280, Math.min(window.innerWidth - 40, 720));
+    WHITE_WIDTH = Math.min(52, Math.max(36, (viewport - 2) / 7));
     BLACK_WIDTH = WHITE_WIDTH * (32 / 52);
     elements.keyboard.style.setProperty("--white-width", `${WHITE_WIDTH}px`);
     elements.keyboard.style.setProperty("--black-width", `${BLACK_WIDTH}px`);
@@ -1104,11 +1110,13 @@ function drawAnsweredStaff() {
 }
 
 function updateStaffReplayAccess() {
-    const canReplay = testActive && testMode === "interval";
-    elements.staff.setAttribute("role", canReplay ? "button" : "img");
-    elements.staff.setAttribute("tabindex", canReplay ? "0" : "-1");
-    elements.staff.setAttribute("aria-label", canReplay ? t("replayInterval") : "Music staff");
-    elements.staff.style.cursor = canReplay ? "pointer" : "";
+    const canReplay = testActive && testMode === "interval" && currentReferenceMidi !== null;
+    elements.intervalReplayButton.hidden = !canReplay;
+    elements.intervalReplayButton.textContent = t("replay");
+    elements.intervalReplayButton.setAttribute("aria-label", t("replayInterval"));
+    const chip = document.getElementById("referenceChip");
+    chip.hidden = !canReplay;
+    if (canReplay) chip.textContent = `Ref ${noteName(currentReferenceMidi)}`;
 }
 
 function formatAnswerText() {
@@ -1168,6 +1176,12 @@ const AP_PITCH_LABELS = ["C", "C\u266f/D\u266d", "D", "D\u266f/E\u266d", "E", "F
 const AP_APP_ID = "piano";
 let apCourse = APPitchScience.loadCourse(AP_APP_ID);
 let apSession = null;
+let lastApQuestionMidi = (() => {
+    try {
+        const value = localStorage.getItem(`ap-last-question-midi-${AP_APP_ID}`);
+        return value === null ? null : Number(value);
+    } catch (_) {return null;}
+})();
 let apTimer = null;
 let apDeadline = null;
 let apAudioReady = false;
@@ -1200,19 +1214,67 @@ function apCorrect(record, session = apSession) {
 function apMetricFor(session) {
     return APPitchScience.metrics(session.records.map((r) => ({...r, correct: apCorrect(r, session), target: r.pitch})));
 }
+const AP_MEMORY_COPY = {
+    en: ["1 · Listen and remember", "Tap each labelled note as often as needed. Then press Play for untimed recall; mistakes return sooner.", "Due now", "Next review", "Replay correct note"],
+    de: ["1 · Anhören und merken", "Beschriftete Töne mehrfach hören. Danach ohne Zeitlimit erinnern; Fehler werden früher wiederholt.", "Jetzt wiederholen", "Nächste Wiederholung", "Richtigen Ton anhören"],
+    ja: ["1 · 聴いて覚える", "音名を見ながら何度でも試聴。Playで時間制限なしの想起練習へ。間違えた音を早めに復習。", "復習する", "次の復習", "正しい音をもう一度"],
+    it: ["1 · Ascolta e memorizza", "Riascolta le note etichettate. Poi richiamale senza limite; ripassa presto gli errori.", "Ripasso ora", "Prossimo ripasso", "Riascolta nota corretta"],
+    el: ["1 · Άκουσε και θυμήσου", "Άκουσε επανειλημμένα τις νότες με ετικέτα και μετά εξασκήσου χωρίς χρονικό όριο.", "Επανάληψη τώρα", "Επόμενη επανάληψη", "Άκουσε ξανά τη σωστή νότα"],
+    "zh-TW": ["1 · 先聽再記", "先反覆聆聽有名稱的音，再按 Play 進行不限時回憶；錯音會安排較早複習。", "現在應複習", "下次複習", "重聽正確音"]
+};
+function apMemoryText(which) {
+    const copy = AP_MEMORY_COPY[currentLanguage] || AP_MEMORY_COPY.en;
+    return copy[{title:0,subtitle:1,due:2,next:3,replay:4}[which]];
+}
+function renderApMemory() {
+    const panel = document.getElementById("apStudyPanel");
+    if (!panel) return;
+    const selectedMode = elements.modeSelect.value;
+    panel.hidden = selectedMode !== "apLearn" || Boolean(apSession && !apSession.finished);
+    if (panel.hidden) return;
+    document.getElementById("apStudyTitle").textContent = apMemoryText("title");
+    document.getElementById("apStudySubtitle").textContent = apMemoryText("subtitle");
+    const cards = document.getElementById("apStudyCards");
+    cards.replaceChildren();
+    const available = APPitchScience.learned(apCourse.level);
+    const items = APMemory.due(AP_APP_ID,available);
+    for (const entry of items) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `secondary ap-study-note${entry.nextAt <= Date.now() ? " due" : ""}`;
+        button.textContent = `▶ ${AP_PITCH_LABELS[entry.pc]} · ${entry.hits}/${entry.attempts}`;
+        button.addEventListener("click", async () => {
+            if (demoRunning || testActive || elements.modeSelect.value !== "apLearn") return;
+            const choices = [];
+            for(let midi=minMidi; midi<=maxMidi; midi++) if (midi%12===entry.pc) choices.push(midi);
+            if (!choices.length) return;
+            const last = Number(button.dataset.lastMidi ?? -1);
+            const eligible = choices.filter(m=>m!==last);
+            const pitch = (eligible.length ? eligible : choices)[Math.floor(Math.random()*(eligible.length?eligible.length:choices.length))];
+            button.dataset.lastMidi = String(pitch);
+            TrainingTracker.activity("ap-learning");
+            await playTone(pitch);
+        });
+        cards.appendChild(button);
+    }
+    const due = items.filter(x => x.nextAt <= Date.now());
+    const next = items.filter(x => x.nextAt > Date.now()).sort((a,b)=>a.nextAt-b.nextAt)[0];
+    const time = next ? new Date(next.nextAt).toLocaleTimeString(currentLanguage,{hour:'2-digit',minute:'2-digit'}) : "—";
+    document.getElementById("apStudyDue").textContent = `${apMemoryText("due")}: ${due.length ? due.map(x=>AP_PITCH_LABELS[x.pc]).join(", ") : "—"} · ${apMemoryText("next")}: ${time}`;
+}
 function refreshApCourseUI() {
     const pane = document.getElementById("apCourseInfo");
     document.getElementById("apDescription").hidden = elements.modeSelect.value !== "ap";
     if (!pane) return;
     pane.hidden = !["apLearn", "apCold"].includes(elements.modeSelect.value);
     const level = APPitchScience.learned(apCourse.level).map((x) => AP_PITCH_LABELS[x]).join(" \xb7 ");
-    const dayPasses = Math.min(2, apCourse.gatePasses.length);
-    document.getElementById("apCourseLevel").textContent = t("apCourseLevel", {level: apCourse.level, names: level, passes: dayPasses});
+    document.getElementById("apCourseLevel").textContent = t("apCourseLevel", {level: apCourse.level, names: level});
     document.getElementById("apColdConfirmation").hidden = elements.modeSelect.value !== "apCold";
+    document.getElementById("apLevelPicker").hidden = !["apLearn", "apCold"].includes(elements.modeSelect.value);
+    document.getElementById("apLevelSelect").value = String(apCourse.level);
+    document.getElementById("apLevelLabel").textContent = t("apLevelLabel");
     document.getElementById("apResetOption").hidden = elements.modeSelect.value !== "apLearn";
     document.getElementById("apCourseDescription").textContent = t(elements.modeSelect.value === "apLearn" ? "apLearnDesc" : "apColdDesc");
-    document.getElementById("apColdConfirmText").textContent = t("apColdConfirmText");
-    document.getElementById("apColdMusicText").textContent = t("apColdMusicText");
     document.getElementById("apColdDeviceLabel").textContent = t("apColdDeviceLabel");
     for (const option of document.getElementById("apColdDevice").options) {
         option.textContent = t("apDevice" + option.value.charAt(0).toUpperCase() + option.value.slice(1));
@@ -1222,6 +1284,7 @@ function refreshApCourseUI() {
     document.getElementById("apResetText").textContent = t("apResetText");
     document.getElementById("apExportButton").textContent = t("apExportButton");
     document.getElementById("apProgressTitle").textContent = t("apProgressTitle");
+    renderApMemory();
 }
 function updateApView() {
     const isAp = isApMode() && !demoRunning;
@@ -1235,6 +1298,7 @@ function updateApView() {
         button.hidden = isAp && !allowed;
         button.disabled = !ready || !testActive || answered || !apAudioReady || !isAp || !allowed;
     });
+    document.getElementById("apLevelSelect").disabled = Boolean(apSession && !apSession.finished);
     if (ready) {
         elements.nextButton.disabled = isAp && (!testActive || !answered || apSession?.finished || apFeedbackPlaying);
     }
@@ -1244,6 +1308,9 @@ function updateApView() {
         else elements.apReview.replaceChildren();
     }
     refreshApCourseUI();
+    const replayNote = document.getElementById("apRepeatNote");
+    replayNote.hidden = !(isAp && testMode === "apLearn" && apSession && !apSession.finished && answered && !apFeedbackPlaying);
+    if (!replayNote.hidden) replayNote.textContent = apMemoryText("replay");
 }
 function renderApResults() {
     if (!apSession?.finished) return;
@@ -1256,12 +1323,8 @@ function renderApResults() {
     results.appendChild(summary);
     if (apSession.kind === "cold") {
         const note = document.createElement("p");
-        const pass = apSession.gateResult;
-        note.textContent = !apSession.eligible || apSession.interrupted ? t("apGateNotCold")
-            : pass?.advanced ? t("apGateAdvance")
-            : pass?.reason === "need-evidence" ? t("apGateNeedEvidence")
-            : pass?.qualifying ? t("apGateProgress")
-            : t("apGateFailed");
+        note.textContent = apSession.interrupted ? t("apInterrupted")
+            : apSession.eligible ? t("apColdFirstResult") : t("apColdPracticeResult");
         results.appendChild(note);
     }
     if (apSession.kind === "cold" && apHideColdAnswers) {
@@ -1295,15 +1358,8 @@ function finishApRound() {
     const metric = apMetricFor(apSession);
     const session = apSession;
     session.completedAt = Date.now();
-    if (session.kind === "cold") {
-        session.gateResult = APPitchScience.applyGate(apCourse, {
-            eligible: session.eligible, completed: true, interrupted: session.interrupted,
-            correct: metric.correct, total: session.total, level: session.level,
-            day: session.day, at: session.startAt,
-            records: session.records.map(r => ({...r, correct: apCorrect(r, session)}))
-        });
-        APPitchScience.saveCourse(AP_APP_ID, apCourse);
-    }
+    // Cold checks now measure progress without deciding what the user may learn.
+    // Existing history stays on the device; level selection is explicit.
     APPitchScience.putRows(AP_APP_ID, "sessions", [{id: session.id, kind: session.kind,
         day: session.day, level: session.level, started: session.startAt,
         finished: session.completedAt, eligible: session.eligible, interrupted: session.interrupted,
@@ -1341,6 +1397,10 @@ function recordApAnswer(guess = null, result = null, inputEvent = null) {
         coldSourceRange: apSession.kind === "cold" ? "C4-B5" : "configured"};
     apSession.records.push(record);
     APPitchScience.putRows(AP_APP_ID, "trials", [{...record, correct: apCorrect(record)}]);
+    if (apSession.kind === "learn" && apSession.known?.includes(pitch % 12) &&
+        (status === "answered" || status === "timeout")) {
+        APMemory.record(AP_APP_ID, pitch % 12, apCorrect(record));
+    }
     if (status === "interrupted" || status === "audio-error") apSession.interrupted = true;
     answered = true; apAudioReady = false;
     questionSerial += 1;
@@ -1386,12 +1446,10 @@ async function playApLearningFeedback(pitch) {
     if (serial !== questionSerial || !apSession || apSession.finished || testMode !== "apLearn") return;
     const start = audioContext.currentTime + 0.04;
     player.queueWaveTable(audioContext, audioContext.destination, pianoPreset, start, pitch, 0.7, 0.7);
-    // The same named pitch in another octave strengthens chroma/template matching.
-    const twin = pitch + (pitch + 12 <= maxMidi ? 12 : -12);
-    player.queueWaveTable(audioContext, audioContext.destination, pianoPreset, start + 0.78, twin, 0.45, 0.6);
-    let waitMs = 1330;
+    // One correct pitch only: no additional octave playback after answering.
+    let waitMs = 840;
     if (document.getElementById("apResetCheck").checked) {
-        apResetSound(start + 1.32, 1.5); waitMs = 2950;
+        apResetSound(start + 0.82, 1.5); waitMs = 2460;
     }
     apFeedbackTimer = window.setTimeout(() => {
         if (serial !== questionSerial) return;
@@ -1423,27 +1481,24 @@ async function playApPitch(midi, serial) {
 function startApQuestion() {
     if (!apSession || apSession.finished) {
         const kind = testMode === "apLearn" ? "learn" : testMode === "apCold" ? "cold" : "assessment";
-        if (kind === "cold" && (!document.getElementById("apColdCheck").checked ||
-            !document.getElementById("apColdMusicCheck").checked)) {
-            setStatus("apGateCheckRequired"); return;
-        }
         const known = kind === "assessment" ? null : APPitchScience.learned(apCourse.level);
-        const total = kind === "cold" ? 30 : kind === "learn" ? 12 : Number(elements.apTrialsSelect.value);
+        const total = kind === "cold" ? 20 : kind === "learn" ? 12 : Number(elements.apTrialsSelect.value);
         const plan = APPitchScience.makeSequence({
             from: kind === "cold" ? AP_COLD_MIN_MIDI : minMidi,
-            to: kind === "cold" ? AP_COLD_MAX_MIDI : maxMidi, total, known});
+            to: kind === "cold" ? AP_COLD_MAX_MIDI : maxMidi, total, known,
+            previousMidi: lastApQuestionMidi,
+            knownWeights: kind === "learn" ? Object.fromEntries(
+                APMemory.due(AP_APP_ID,known || []).map(x => [x.pc, x.nextAt <= Date.now() ? 2.5 : 1])) : null});
         if (plan.length !== total) {setStatus("apNeedRange"); return;}
         const lastPractice = APPitchScience.lastPracticeAt(AP_APP_ID);
         const gapSincePracticeMs = lastPractice === null ? null : Date.now() - lastPractice;
+        // Informational only: first check after a break is the best baseline.
         const eligible = kind === "cold" && !APPitchScience.practiceToday(AP_APP_ID) &&
             (gapSincePracticeMs === null || gapSincePracticeMs >= AP_COLD_MIN_REST_MS);
         apHideColdAnswers = kind === "cold" && document.getElementById("apHideColdCheck").checked;
-        // Confirmation is single-use, even on a trial deemed ineligible.
-        document.getElementById("apColdCheck").checked = false;
-        document.getElementById("apColdMusicCheck").checked = false;
         apSession = {id: `${AP_APP_ID}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            kind, total, plan, records: [], known, limitMs: kind === "cold" ? 5000
-                : kind === "learn" ? 4000 : elements.apTimeSelect.value === "none" ? null
+            kind, total, plan, records: [], known, limitMs: kind === "cold" ? 8000
+                : kind === "learn" ? null : elements.apTimeSelect.value === "none" ? null
                     : Number(elements.apTimeSelect.value) * 1000,
             finished: false, eligible, interrupted: false, hiddenCount: 0,
             gapSincePracticeMs,
@@ -1461,6 +1516,8 @@ function startApQuestion() {
     releaseAllKeys(); window.clearTimeout(freeDisplayTimeout);
     player.cancelQueue(audioContext); resetKeyboardColors();
     currentMidi = target; currentReferenceMidi = null;
+    lastApQuestionMidi = target;
+    try { localStorage.setItem(`ap-last-question-midi-${AP_APP_ID}`, String(target)); } catch (_) {}
     testActive = true; answered = false; apAudioReady = false;
     questionSerial += 1;
     const serial = questionSerial;
@@ -1519,6 +1576,8 @@ async function refreshApHistory() {
 }
 
 function updatePlayButton() {
+    document.querySelector(".app-shell").classList.toggle("board-test",
+        testActive && (testMode === "interval" || (testMode === "rpCourse" && document.getElementById("rpActivity").value === "locate")));
     elements.playButton.textContent = t(testActive ? "stop" : "play");
     elements.playButton.classList.toggle("danger", testActive);
     elements.playButton.classList.toggle("primary", !testActive);
@@ -1530,6 +1589,7 @@ function updateIntervalPickerVisibility() {
     elements.apPicker.hidden = !["ap", "apLearn", "apCold"].includes(elements.modeSelect.value);
     document.getElementById("apAssessmentOptions").hidden = elements.modeSelect.value !== "ap";
     refreshApCourseUI();
+    if (window.RPUI) RPUI.modeChanged();
 }
 
 function intervalTargetPools(from, to, minDistance, maxDistance, direction, excludedTarget = null) {
@@ -1568,6 +1628,7 @@ function newQuestion() {
     if (!ready) return;
     TrainingTracker.activity("question");
     if (isApMode()) { startApQuestion(); return; }
+    if (testMode === "rpCourse") { RPUI.startNext(); return; }
     APPitchScience.markPractice(AP_APP_ID);
     releaseAllKeys();
     window.clearTimeout(freeDisplayTimeout);
@@ -1617,19 +1678,13 @@ function newQuestion() {
 }
 
 function abandonQualifyingCold() {
-    if (apSession?.kind === "cold" && !apSession.finished && apSession.eligible) {
-        APPitchScience.applyGate(apCourse, {
-            eligible:true, completed:false, interrupted:true, correct:0, total:30,
-            level:apSession.level, day:apSession.day, at:apSession.startAt,
-            records:apSession.records
-        });
-        apCourse.gatePasses = [];
-        APPitchScience.saveCourse(AP_APP_ID, apCourse);
+    // No streak or promotion penalty: the cold check is now optional.
+    if (apSession?.kind === "cold" && !apSession.finished) {
         apSession.interrupted = true;
-        apSession.eligible = false; // prevent a duplicate terminal record
     }
 }
 function stopTest() {
+    if (testMode === "rpCourse") { RPUI.stop(); return; }
     abandonQualifyingCold();
     TrainingTracker.pause();
     clearApTimer();
@@ -1716,6 +1771,7 @@ function answer(selectedMidi) {
 }
 
 function pressKey(midi, pointerId) {
+    if (testMode === "rpCourse" && !demoRunning && RPUI.answerPosition(midi)) return;
     if (isApMode() && !demoRunning) return; // Never play a reference note in the assessment.
     if (!ready) {
         return;
@@ -1748,6 +1804,7 @@ function applySettings() {
     }
     const startMidi = Number(elements.startNote.value);
     const endMidi = Number(elements.endNote.value);
+    const rpConfig = elements.modeSelect.value === "rpCourse";
 
     if (startMidi > endMidi) {
         setStatus("invalidRange");
@@ -1781,8 +1838,8 @@ function applySettings() {
         }
     }
 
-    minMidi = startMidi;
-    maxMidi = endMidi;
+    minMidi = rpConfig ? SUPPORTED_MIN_MIDI : startMidi;
+    maxMidi = rpConfig ? SUPPORTED_MAX_MIDI : endMidi;
     keyName = elements.keySelect.value;
     clefMode = elements.clefSelect.value;
     testMode = elements.modeSelect.value;
@@ -1816,6 +1873,7 @@ function applySettings() {
     });
     setAnswer(isApMode() ? "apStart" : "free");
     updateApView();
+    RPUI.modeChanged();
 }
 
 function populateSelectors() {
@@ -1902,6 +1960,30 @@ const unlessDemo = (callback) => (event) => {
     if (!demoRunning) callback(event);
 };
 
+// Users choose difficulty directly; cold checks remain a measurement, not a lock.
+const apLevelSelect = document.getElementById("apLevelSelect");
+for (let level = 1; level <= 12; level++) {
+    const option = document.createElement("option");
+    option.value = String(level);
+    option.textContent = `${level} / 12`;
+    apLevelSelect.appendChild(option);
+}
+apLevelSelect.value = String(apCourse.level);
+apLevelSelect.addEventListener("change", unlessDemo(() => {
+    if (apSession && !apSession.finished) {
+        apLevelSelect.value = String(apCourse.level);
+        return;
+    }
+    const selected = Number(apLevelSelect.value);
+    if (!Number.isInteger(selected) || selected < 1 || selected > 12) return;
+    apCourse.level = selected;
+    apCourse.courseVersion = 3;
+    APPitchScience.saveCourse(AP_APP_ID, apCourse);
+    apSession = null;
+    testActive = false;
+    answered = false;
+    updateApView();
+}));
 elements.applyButton.addEventListener("click", unlessDemo(applySettings));
 elements.modeSelect.addEventListener("change", unlessDemo(() => {
     const chosen = elements.modeSelect.value;
@@ -1921,12 +2003,9 @@ elements.playButton.addEventListener("click", unlessDemo(() => {
     else newQuestion();
 }));
 elements.nextButton.addEventListener("click", unlessDemo(newQuestion));
-elements.staff.addEventListener("click", unlessDemo(() => {
-    if (testActive && testMode === "interval") { TrainingTracker.activity("staff-replay"); playQuestion(); }
-}));
-elements.staff.addEventListener("keydown", unlessDemo((event) => {
-    if (testActive && testMode === "interval" && (event.key === "Enter" || event.key === " ")) {
-        event.preventDefault();
+elements.intervalReplayButton.addEventListener("click", unlessDemo(() => {
+    if (testActive && testMode === "interval") {
+        TrainingTracker.activity("interval-replay");
         playQuestion();
     }
 }));
@@ -1936,10 +2015,6 @@ function invalidateHiddenAp() {
     if (apSession.kind === "cold") {
         apSession.interrupted = true;
         apSession.hiddenCount = (apSession.hiddenCount || 0) + 1;
-        if (apSession.eligible) {
-            apCourse.gatePasses = [];
-            APPitchScience.saveCourse(AP_APP_ID, apCourse);
-        }
         if (answered) setStatus("apColdInvalidated");
     }
     if (testActive && !answered) recordApAnswer(null, "interrupted");
@@ -1961,7 +2036,14 @@ window.addEventListener("pagehide", abandonQualifyingCold);
 
 populateSelectors();
 createApAnswerButtons();
+RPUI.init();
 document.getElementById("apExportButton").addEventListener("click", exportApCSV);
+document.getElementById("apRepeatNote").addEventListener("click", unlessDemo(() => {
+    if (testMode === "apLearn" && apSession && !apSession.finished && answered && !apFeedbackPlaying && currentMidi !== null) {
+        TrainingTracker.activity("ap-learning");
+        playTone(currentMidi);
+    }
+}));
 refreshApHistory();
 updateIntervalPickerVisibility();
 setLanguage(resolveInitialLanguage());

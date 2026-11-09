@@ -1,7 +1,7 @@
 {
     "name": "Pitch Trainer",
     "short_name": "Pitch Trainer",
-    "description": "Pitch recognition, piano mapping, and staff reading trainer.",
+    "description": "Pitch recognition and piano mapping trainer.",
     "start_url": "./",
     "scope": "./",
     "display": "standalone",
