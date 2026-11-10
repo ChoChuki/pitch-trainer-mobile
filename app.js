@@ -1,4 +1,4 @@
-const APP_VERSION = "18.10";
+const APP_VERSION = "18.12";
 const PLAY_DURATION = 0.7;
 const SUPPORTED_MIN_MIDI = 36;
 const SUPPORTED_MAX_MIDI = 95;
@@ -1242,18 +1242,15 @@ function renderApMemory() {
         const button = document.createElement("button");
         button.type = "button";
         button.className = `secondary ap-study-note${entry.nextAt <= Date.now() ? " due" : ""}`;
-        button.textContent = `▶ ${AP_PITCH_LABELS[entry.pc]} · ${entry.hits}/${entry.attempts}`;
+        // A study card is a stable auditory memory anchor, not a random-octave test.
+        // C4..B4 are available in both instruments regardless of the question range.
+        // e.g. E always plays MIDI 64 (E4), never E5/E6 on another tap.
+        const studyMidi = 60 + entry.pc;
+        button.textContent = `▶ ${AP_PITCH_LABELS[entry.pc]}${Math.floor(studyMidi / 12) - 1} · ${entry.hits}/${entry.attempts}`;
         button.addEventListener("click", async () => {
             if (demoRunning || testActive || elements.modeSelect.value !== "apLearn") return;
-            const choices = [];
-            for(let midi=minMidi; midi<=maxMidi; midi++) if (midi%12===entry.pc) choices.push(midi);
-            if (!choices.length) return;
-            const last = Number(button.dataset.lastMidi ?? -1);
-            const eligible = choices.filter(m=>m!==last);
-            const pitch = (eligible.length ? eligible : choices)[Math.floor(Math.random()*(eligible.length?eligible.length:choices.length))];
-            button.dataset.lastMidi = String(pitch);
             TrainingTracker.activity("ap-learning");
-            await playTone(pitch);
+            await playTone(studyMidi);
         });
         cards.appendChild(button);
     }
@@ -1838,6 +1835,7 @@ function applySettings() {
         }
     }
 
+    if (window.RPUI) RPUI.configurationApplied();
     minMidi = rpConfig ? SUPPORTED_MIN_MIDI : startMidi;
     maxMidi = rpConfig ? SUPPORTED_MAX_MIDI : endMidi;
     keyName = elements.keySelect.value;
@@ -2005,7 +2003,7 @@ elements.playButton.addEventListener("click", unlessDemo(() => {
 elements.nextButton.addEventListener("click", unlessDemo(newQuestion));
 elements.intervalReplayButton.addEventListener("click", unlessDemo(() => {
     if (testActive && testMode === "interval") {
-        TrainingTracker.activity("interval-replay");
+        TrainingTracker.activity("question");
         playQuestion();
     }
 }));
